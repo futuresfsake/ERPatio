@@ -25,4 +25,7 @@ Score = Likelihood (1–5) × Impact (1–5).
 | R-08 | Data loss | 2 | 5 | 10 | Backups, restore drills | DevOps |
 | R-09 | Migration/upgrade breaks tenants | 3 | 4 | 12 | Backward-compatible migrations, staged rollout | DevOps |
 | R-10 | Security debt from hardcoded secrets (present in current compose file) | 5 | 3 | 15 | US-003 immediately | Dev |
+| R-12 | Personal-data breach or non-compliance | 3 | 5 | 15 | M0 privacy scope, field encryption, breach runbook, legal review (G-21) | PO |
+| R-13 | M0 too large, delays first usable feature | 4 | 3 | 12 | Sequence inside M0; defer Shoulds; show demo of auth early | PO |
+| R-14 | Lost encryption key makes data unrecoverable | 2 | 5 | 10 | KMS, key backup, recovery drill (US-108) | DevOps |
 | R-11 | Key-person dependency (single maintainer) | 4 | 3 | 12 | Documentation, ADRs, automation | PO |
