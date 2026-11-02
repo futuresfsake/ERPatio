@@ -25,5 +25,14 @@ The BA raises these because requirements cannot be finalised without a decision.
 | G-19 | Language: English only? | NFR-18 | No | English v1 | M6 | _open_ |
 | G-20 | Budget and team size assumptions (3 devs?) | Roadmap dates | No | Validate | M0 | _open_ |
 
+## Added with the M0 security & privacy scope
+| ID | Gap / question | Impact | Blocking? | BA recommendation | Needed by | Decision |
+|---|---|---|---|---|---|---|
+| G-21 | Which privacy law(s) apply (PH Data Privacy Act, GDPR for foreign tenants)? Legal basis, retention periods, DPO appointment? | FR-PRV-04…07 | **Yes** | PH DPA baseline, GDPR-ready; get legal review | M0 | _open_ |
+| G-22 | Who holds and backs up the master encryption key (KMS provider, key custody)? | US-108, 111 | **Yes** | Managed KMS of chosen cloud; documented recovery | M0 | _open_ |
+| G-23 | Accepted residual risks (vendor insider, provider compromise)? Need cyber insurance / external audit (SOC 2/ISO 27001)? | Trust, sales | No | Defer certification; pen-test at M7 | M7 | _open_ |
+| G-24 | Should 2FA be mandatory for all users or privileged roles only? | UX | No | Privileged roles mandatory, others optional | M0 | _open_ |
+| G-25 | Is M0 scope (~150 pts, 4 sprints) acceptable, or defer Should items? | Schedule | No | Keep Musts; defer Shoulds if capacity < 35 pts/sprint | M0 | _open_ |
+
 ## Assumptions recorded
 See [18 Risks & Assumptions](18-risks-and-assumptions.md).
