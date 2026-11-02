@@ -21,6 +21,8 @@
 | 19 | [Traceability](19-traceability-matrix.md) | BR→FR→Story |
 | 20 | [Definition of Ready/Done](20-definition-of-done.md) | Quality gates |
 | 21 | [Glossary](21-glossary.md) | Terms |
+| 22 | [Security & data privacy FR](22-fr-security-and-data-privacy.md) | **M0** requirements |
+| 23 | [Threat model](23-threat-model.md) | STRIDE |
 | — | [ADRs](adr/) | Architecture decisions |
 | — | [Design notes](design/) | Early folder/schema design |
 
