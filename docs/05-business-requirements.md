@@ -18,5 +18,7 @@ Customer needs translated from [03](03-simulated-customer-profile.md). Each BR i
 | BR-12 | Customer can self-onboard and import existing data | Should | Vendor, Customer | FR-TEN-*, FR-DAT-* |
 | BR-13 | Open API for integrations | Could | Owner | FR-API-* |
 | BR-14 | Data can be exported at any time (no lock-in) | Must | Owner | FR-DAT-* |
+| BR-15 | The platform is secure by default and resists common attacks | Must | Owner, Auditor | FR-SEC-*, FR-AUT-* |
+| BR-16 | Personal data is protected and handled per privacy law (access, erasure, consent) | Must | HR, Owner, Vendor | FR-PRV-* |
 
 Priority = MoSCoW. PO to confirm in [17 Gaps](17-gaps-and-open-questions-for-po.md).
