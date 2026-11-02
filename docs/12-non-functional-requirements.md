@@ -13,7 +13,7 @@
 | NFR-09 | Security | Encryption at rest (TDE) for DB, encrypted backups | — |
 | NFR-10 | Integrity | ACID transactions for all postings; no float money | — |
 | NFR-11 | Auditability | Append-only audit log, 7-year retention | — |
-| NFR-12 | Privacy | Data-privacy law compliance (PH DPA; GDPR-ready) | DPA doc |
+| NFR-12 | Privacy | Data-privacy law compliance (PH DPA; GDPR-ready); detailed in doc 22 | Privacy notice, DSAR + erasure working (M0) |
 | NFR-13 | Usability | Core flows learnable in ≤ 2 training sessions | UAT feedback |
 | NFR-14 | Accessibility | WCAG 2.1 AA for main screens | — |
 | NFR-15 | Observability | Structured logs, metrics, traces, per-tenant dashboards | — |
