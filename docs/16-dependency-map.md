@@ -3,7 +3,7 @@
 ## Module dependencies
 ```mermaid
 graph TD
-  M0[M0 Foundation] --> M1[M1 IAM + Tenancy]
+  M0[M0 Foundation + Security + AuthN + Privacy] --> M1[M1 Access Mgmt + Tenant Admin]
   M1 --> M2[M2 Finance / GL]
   M2 --> M3[M3 Supply Chain]
   M3 --> M4[M4 Production]
@@ -19,6 +19,15 @@ graph TD
 | Story | Depends on | Why |
 |---|---|---|
 | **US-019 RLS** | US-004, US-010 | Needs session + tenant context |
+| **US-104/105 CI scanners** | US-006 | Pipeline must exist first |
+| US-120 Email verification | US-010, email provider | Needs signup + mail |
+| **US-110 PII register** | US-004, US-005 | Needs models/migrations |
+| **US-111 Field encryption** | US-108, US-110 | Needs keys + classification |
+| US-114 Subject access export | US-110 | Needs PII register to find data |
+| **US-115 Erasure/anonymisation** | US-110, US-111, ADR-003 | Must preserve ledger |
+| US-117 Sensitive-read audit | US-020, US-111 | Audit log + encrypted fields |
+| US-107 Encryption at rest | Hosting decision (Gap G-06) | Platform-dependent |
+| **M5 payroll** | US-111, US-117 (M0) | Payroll data is Sensitive-Personal |
 | US-018 RBAC guard | US-011 | Needs token claims |
 | **US-033 Balanced entry** | US-032 | Journal model |
 | **US-047 Posting engine** | US-034, US-036 | Needs posted/immutable + periods |
