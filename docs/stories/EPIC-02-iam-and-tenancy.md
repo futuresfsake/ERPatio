@@ -1,4 +1,10 @@
-# EPIC-02 — Identity, Access & Tenancy (Milestone M1)
+# EPIC-02 — Identity, Access & Tenancy (Milestones M0 and M1)
+
+**Split by milestone (v0.2):**
+- **M0 (security foundation):** US-010, 011, 012, 013, 014, 015, 018, 019, 020, 023
+- **M1 (administration):** US-016, 017, 021, 022, 024
+
+Additional authentication and privacy stories are in [EPIC-06](EPIC-06-security-and-data-privacy.md).
 
 ### US-010 Tenant signup · 5 pts · Must
 As a new customer I want to register my company so that I get my own isolated workspace.
