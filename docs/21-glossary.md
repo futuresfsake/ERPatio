@@ -18,6 +18,10 @@
 | PaaS | Platform as a Service — vendor provides a platform to build apps on |
 | Tenant | One customer company and its isolated data |
 | UoM | Unit of Measure |
+| PII | Personally Identifiable Information |
+| STRIDE | Spoofing, Tampering, Repudiation, Info disclosure, DoS, Elevation of privilege |
+| TDE | Transparent Data Encryption |
+| DPA | Data Privacy Act (PH) / Data Processing Agreement (context-dependent) |
 | WIP | Work in Progress |
 | WAvg | Weighted-average costing |
 | BA / PO | Business Analyst / Product Owner |
