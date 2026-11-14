@@ -154,12 +154,13 @@ async function assertParty(c: PoolClient, tenantId: string, kind: DocKind, party
 async function writeLines(c: PoolClient, tenantId: string, docId: string, data: DocumentIn, calc: Computed) {
   await c.query('DELETE FROM document_lines WHERE tenant_id = $1 AND document_id = $2', [tenantId, docId]);
   await c.query(
-    `INSERT INTO document_lines (tenant_id, document_id, line_no, description, account_id, quantity, unit_price, tax_code_id, net, tax)
-     SELECT $1, $2, t.n, t.d, t.a, t.q, t.p, t.x, t.net, t.tax
-       FROM unnest($3::text[], $4::uuid[], $5::numeric[], $6::numeric[], $7::uuid[], $8::numeric[], $9::numeric[]) WITH ORDINALITY AS t(d, a, q, p, x, net, tax, n)`,
+    `INSERT INTO document_lines (tenant_id, document_id, line_no, description, account_id, quantity, unit_price, tax_code_id, net, tax, po_line_id, so_line_id)
+     SELECT $1, $2, t.n, t.d, t.a, t.q, t.p, t.x, t.net, t.tax, t.po, t.so
+       FROM unnest($3::text[], $4::uuid[], $5::numeric[], $6::numeric[], $7::uuid[], $8::numeric[], $9::numeric[], $10::uuid[], $11::uuid[]) WITH ORDINALITY AS t(d, a, q, p, x, net, tax, po, so, n)`,
     [tenantId, docId, data.lines.map((l) => l.description), data.lines.map((l) => l.account_id), data.lines.map((l) => l.quantity),
       data.lines.map((l) => l.unit_price), data.lines.map((l) => l.tax_code_id ?? null),
-      calc.lines.map((l) => fromUnits(l.net)), calc.lines.map((l) => fromUnits(l.tax))],
+      calc.lines.map((l) => fromUnits(l.net)), calc.lines.map((l) => fromUnits(l.tax)),
+      data.lines.map((l) => l.po_line_id ?? null), data.lines.map((l) => l.so_line_id ?? null)],
   );
 }
 
@@ -174,7 +175,7 @@ async function loadDoc(c: PoolClient, tenantId: string, kind: DocKind, id: strin
   if (!d) throw notFound(kind === 'invoice' ? 'Invoice' : 'Bill');
   const lines = (await c.query(
     `SELECT l.line_no, l.description, l.account_id, a.code AS account_code, l.quantity::text, l.unit_price::text,
-            l.tax_code_id, t.code AS tax_code, l.net::text, l.tax::text
+            l.tax_code_id, t.code AS tax_code, l.net::text, l.tax::text, l.po_line_id, l.so_line_id
        FROM document_lines l JOIN accounts a ON a.id = l.account_id AND a.tenant_id = l.tenant_id
        LEFT JOIN tax_codes t ON t.id = l.tax_code_id AND t.tenant_id = l.tenant_id
       WHERE l.tenant_id = $1 AND l.document_id = $2 ORDER BY l.line_no`, [tenantId, id])).rows;
@@ -198,7 +199,10 @@ export const listDocuments = (p: Principal, kind: DocKind, q: { status?: string;
 export const getDocument = (p: Principal, kind: DocKind, id: string) => withTenant(p.tenantId, (c) => loadDoc(c, p.tenantId, kind, id));
 
 export const createDraft = (p: Principal, kind: DocKind, data: DocumentIn, ip?: string) =>
-  withTenant(p.tenantId, async (c) => {
+  withTenant(p.tenantId, (c) => createDraftInTx(c, p, kind, data, ip));
+
+export async function createDraftInTx(c: PoolClient, p: Principal, kind: DocKind, data: DocumentIn, ip?: string) {
+  {
     const party = await assertParty(c, p.tenantId, kind, data.party_id);
     const due = data.due_date ?? addDays(data.doc_date, party.terms_days);
     if (due < data.doc_date) throw new ApiError(422, 'invalid_due_date', 'The due date cannot be before the document date.');
@@ -212,7 +216,8 @@ export const createDraft = (p: Principal, kind: DocKind, data: DocumentIn, ip?: 
     await writeLines(c, p.tenantId, rows[0]!.id, data, calc);
     await recordAudit(c, { tenantId: p.tenantId, action: `${kind}.draft_created`, actorUserId: p.userId, entityType: 'document', entityId: rows[0]!.id, ip, detail: { total: fromUnits(calc.total) } });
     return loadDoc(c, p.tenantId, kind, rows[0]!.id);
-  });
+  }
+}
 
 async function lockDraft(c: PoolClient, tenantId: string, kind: DocKind, id: string) {
   const d = (await c.query<{ status: string }>('SELECT status FROM documents WHERE tenant_id = $1 AND kind = $2 AND id = $3 FOR UPDATE', [tenantId, kind, id])).rows[0];
@@ -259,8 +264,8 @@ export const postDocument = (p: Principal, kind: DocKind, id: string, ip?: strin
       'SELECT party_id, doc_date::text, reference FROM documents WHERE tenant_id = $1 AND id = $2', [p.tenantId, id])).rows[0]!;
     const party = (await c.query<{ code: string; name: string; is_active: boolean }>('SELECT code, name, is_active FROM parties WHERE tenant_id = $1 AND id = $2', [p.tenantId, doc.party_id])).rows[0]!;
     if (!party.is_active) throw new ApiError(422, 'inactive_party', 'This party is inactive.');
-    const lines = (await c.query<{ description: string; account_id: string; net: string; tax: string; tax_account_id: string | null }>(
-      `SELECT l.description, l.account_id, l.net::text, l.tax::text, t.account_id AS tax_account_id
+    const lines = (await c.query<{ description: string; account_id: string; net: string; tax: string; tax_account_id: string | null; quantity: string; po_line_id: string | null; so_line_id: string | null }>(
+      `SELECT l.description, l.account_id, l.net::text, l.tax::text, t.account_id AS tax_account_id, l.quantity::text, l.po_line_id, l.so_line_id
          FROM document_lines l LEFT JOIN tax_codes t ON t.id = l.tax_code_id AND t.tenant_id = l.tenant_id
         WHERE l.tenant_id = $1 AND l.document_id = $2 ORDER BY l.line_no`, [p.tenantId, id])).rows;
 
@@ -275,6 +280,16 @@ export const postDocument = (p: Principal, kind: DocKind, id: string, ip?: strin
     }
     const total = subtotal + tax;
     if (total <= 0n) throw new ApiError(422, 'invalid_total', 'The document total must be above zero.');
+
+    // Billing or invoicing an order line is counted here, at posting, so two drafts cannot bill the same goods twice.
+    for (const l of lines) {
+      const link = kind === 'bill' ? l.po_line_id : l.so_line_id;
+      if (!link) continue;
+      const tbl = kind === 'bill' ? 'purchase_order_lines SET billed_qty = billed_qty + $3 WHERE tenant_id = $1 AND id = $2 AND billed_qty + $3 <= received_qty'
+        : 'sales_order_lines SET invoiced_qty = invoiced_qty + $3 WHERE tenant_id = $1 AND id = $2 AND invoiced_qty + $3 <= delivered_qty';
+      const done = await c.query('UPDATE ' + tbl, [p.tenantId, link, l.quantity]);
+      if (!done.rowCount) throw new ApiError(409, 'over_billing', `${kind === 'bill' ? 'Billing' : 'Invoicing'} more than has been ${kind === 'bill' ? 'received' : 'delivered'} and not yet ${kind === 'bill' ? 'billed' : 'invoiced'}.`);
+    }
 
     const control = await controlAccount(c, p.tenantId, kind);
     const no = (await c.query<{ seq: string }>('UPDATE doc_counters SET seq = seq + 1 WHERE tenant_id = $1 AND kind = $2 RETURNING seq', [p.tenantId, kind])).rows[0]!.seq;
@@ -324,6 +339,8 @@ export const voidDocument = (p: Principal, kind: DocKind, id: string, on: string
       lines: lines.map((l) => ({ account_id: l.account_id, debit: l.credit, credit: l.debit, memo: l.memo ?? undefined })),
     }, ip, d.journal_entry_id, { detail: { document: label, void: true } });
     await c.query("UPDATE documents SET status = 'void', void_entry_id = $3 WHERE tenant_id = $1 AND id = $2", [p.tenantId, id, entryId]);
+    await c.query('UPDATE purchase_order_lines o SET billed_qty = o.billed_qty - l.quantity FROM document_lines l WHERE l.tenant_id = $1 AND l.document_id = $2 AND l.po_line_id = o.id AND o.tenant_id = $1', [p.tenantId, id]);
+    await c.query('UPDATE sales_order_lines o SET invoiced_qty = o.invoiced_qty - l.quantity FROM document_lines l WHERE l.tenant_id = $1 AND l.document_id = $2 AND l.so_line_id = o.id AND o.tenant_id = $1', [p.tenantId, id]);
     await recordAudit(c, { tenantId: p.tenantId, action: `${kind}.voided`, actorUserId: p.userId, entityType: 'document', entityId: id, ip, detail: { doc_no: Number(d.doc_no) } });
     return loadDoc(c, p.tenantId, kind, id);
   });

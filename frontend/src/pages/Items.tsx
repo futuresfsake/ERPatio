@@ -36,11 +36,11 @@ export function Items() {
               {q.data.map((i) => (
                 <tr key={i.id} className={i.is_active ? '' : 'off'}>
                   <td className="code"><Link to={`/items/${i.id}`}>{i.sku}</Link></td>
-                  <td className="name">{i.name}</td>
+                  <td className="name">{i.name}{i.below_reorder && <span className="muted"> · reorder (level {qtyText(i.reorder_level)})</span>}</td>
                   <td className="num">{qtyText(i.qty_on_hand)} {i.uom}</td>
                   <td className="num">{formatApiNum(i.avg_cost)}</td>
                   <td className="num">{formatApiNum(i.value_on_hand)}</td>
-                  <td className="num">{write && <><button className="linkbtn" onClick={() => setAdjusting(i)}>Adjust</button> · <button className="linkbtn" onClick={() => toggle.mutate(i)}>{i.is_active ? 'Deactivate' : 'Reactivate'}</button></>}</td>
+                  <td className="num">{write && <><button className="linkbtn" onClick={() => setAdjusting(i)}>Adjust</button> · <button className="linkbtn" onClick={() => { const v = window.prompt('Reorder level for ' + i.sku + ' (0 turns it off)', qtyText(i.reorder_level)); if (v !== null && parseAmount(v) !== null) void stock.setReorder(i.id, toApi(parseAmount(v)!)).then(() => qc.invalidateQueries({ queryKey: ['items'] })); }}>Reorder level</button> · <button className="linkbtn" onClick={() => toggle.mutate(i)}>{i.is_active ? 'Deactivate' : 'Reactivate'}</button></>}</td>
                 </tr>
               ))}
               {q.data.length === 0 && <tr><td colSpan={6} className="empty">No items yet.</td></tr>}

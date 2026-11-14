@@ -71,7 +71,8 @@ export async function provisionTenant(
        inventory_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1200'),
        cogs_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5000'),
        grni_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2050'),
-       adjustment_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5100') WHERE tenant_id = $1`,
+       adjustment_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5100'),
+       sales_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '4000') WHERE tenant_id = $1`,
     [tid],
   );
   for (const kind of ['invoice', 'bill', 'po', 'so']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);

@@ -53,6 +53,8 @@ export const DocumentIn = z.object({
         quantity: qty.default('1'),
         unit_price: money,
         tax_code_id: z.uuid().nullable().optional(),
+        po_line_id: z.uuid().nullable().optional(),
+        so_line_id: z.uuid().nullable().optional(),
       }),
     )
     .min(1)

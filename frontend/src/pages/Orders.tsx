@@ -115,15 +115,20 @@ export function OrderDetail({ kind }: { kind: OrderKind }) {
   const { can } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
-  const [moving, setMoving] = useState(false);
+  const [moving, setMoving] = useState<'move' | 'return' | null>(null);
   const q = useQuery({ queryKey: ['order', kind, id], queryFn: () => stock.order(kind, id!) });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ['order', kind, id] }); void qc.invalidateQueries({ queryKey: ['orders', kind] }); void qc.invalidateQueries({ queryKey: ['items'] }); };
   const act = useMutation({
     mutationFn: (a: 'approve' | 'cancel' | 'delete'): Promise<unknown> => (a === 'approve' ? stock.approve(kind, id!) : a === 'cancel' ? stock.cancel(kind, id!) : stock.deleteOrder(kind, id!)),
     onSuccess: (_r, a) => { if (a === 'delete') { toast('Draft deleted'); void qc.invalidateQueries({ queryKey: ['orders', kind] }); nav(`/${O.path}`); } else { toast(a === 'approve' ? 'Approved' : 'Cancelled'); refresh(); } },
   });
+  const makeDoc = useMutation({
+    mutationFn: () => stock.makeDocument(kind, id!),
+    onSuccess: (d) => { toast(kind === 'po' ? 'Draft bill created' : 'Draft invoice created'); nav(`/${kind === 'po' ? 'bills' : 'invoices'}/${d.id}`); },
+  });
   const o = q.data;
   const orders = can('orders:write');
+  const hasDone = (o?.lines ?? []).some((l) => l.done_qty !== '0.0000');
   const anyDone = o?.lines.some((l) => parseAmount(l.done_qty) !== 0n && l.done_qty !== '0.0000') ?? false;
   return (
     <>
@@ -132,12 +137,14 @@ export function OrderDetail({ kind }: { kind: OrderKind }) {
         {o && (
           <div className="actions">
             {orders && o.status === 'draft' && <><Link className="btn" to={`/${O.path}/${o.id}/edit`}>Edit</Link><button className="btn" disabled={act.isPending} onClick={() => act.mutate('delete')}>Delete draft</button><button className="btn primary" disabled={act.isPending} onClick={() => act.mutate('approve')}>Approve</button></>}
-            {o.status === 'open' && can('inventory:write') && <button className="btn primary" onClick={() => setMoving(true)}>{O.Act} goods</button>}
+            {o.status === 'open' && can('inventory:write') && <button className="btn primary" onClick={() => setMoving('move')}>{O.Act} goods</button>}
+            {(o.status === 'open' || o.status === 'closed') && hasDone && can('inventory:write') && <button className="btn" onClick={() => setMoving('return')}>Return goods</button>}
+            {hasDone && can(kind === 'po' ? 'payables:write' : 'receivables:write') && <button className="btn" disabled={makeDoc.isPending} onClick={() => makeDoc.mutate()}>{kind === 'po' ? 'Create bill' : 'Create invoice'}</button>}
             {orders && (o.status === 'open') && !anyDone && <button className="btn" disabled={act.isPending} onClick={() => { if (window.confirm('Cancel this order?')) act.mutate('cancel'); }}>Cancel order</button>}
           </div>
         )}
       </div>
-      <Problem error={q.error ?? act.error} />
+      <Problem error={q.error ?? act.error ?? makeDoc.error} />
       {q.isLoading && <Loading what="order" />}
       {o && (
         <>
@@ -146,20 +153,20 @@ export function OrderDetail({ kind }: { kind: OrderKind }) {
             <tbody>{o.lines.map((l) => <tr key={l.id}><td className="code">{l.sku}</td><td className="name">{l.item_name}</td><td className="num">{qtyText(l.quantity)}</td><td className="num">{qtyText(l.done_qty)}</td><td className="num">{qtyText(l.open_qty)}</td><td className="num">{formatApiNum(l.price)}</td></tr>)}</tbody>
           </table></div>
           <div className="statement" style={{ maxWidth: 320, marginLeft: 'auto', marginTop: 16 }}><div className="ln sum"><span>Total</span><span className="dots" /><span className="num">{formatApiNum(o.total)}</span></div></div>
-          <Move kind={kind} order={o} open={moving} onClose={() => setMoving(false)} onDone={() => { toast(kind === 'po' ? 'Goods received' : 'Goods delivered'); refresh(); }} />
+          <Move kind={kind} order={o} mode={moving ?? 'move'} open={moving !== null} onClose={() => setMoving(null)} onDone={() => { toast(moving === 'return' ? 'Goods returned' : kind === 'po' ? 'Goods received' : 'Goods delivered'); refresh(); }} />
         </>
       )}
     </>
   );
 }
 
-function Move({ kind, order, open, onClose, onDone }: { kind: OrderKind; order: Order; open: boolean; onClose: () => void; onDone: () => void }) {
+function Move({ kind, order, mode, open, onClose, onDone }: { kind: OrderKind; order: Order; mode: 'move' | 'return'; open: boolean; onClose: () => void; onDone: () => void }) {
   const O = ORDERS[kind];
   const [date, setDate] = useState(todayIso());
   const [qty, setQty] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
   const m = useMutation({
-    mutationFn: () => stock.fulfil(kind, order.id, date, order.lines.filter((l) => parseAmount(qty[l.id] ?? '') !== null && parseAmount(qty[l.id] ?? '') !== 0n).map((l) => ({ line_id: l.id, quantity: toApi(parseAmount(qty[l.id]!)!) }))),
+    mutationFn: () => (mode === 'return' ? stock.fulfilReturn : stock.fulfil)(kind, order.id, date, order.lines.filter((l) => parseAmount(qty[l.id] ?? '') !== null && parseAmount(qty[l.id] ?? '') !== 0n).map((l) => ({ line_id: l.id, quantity: toApi(parseAmount(qty[l.id]!)!) }))),
     onSuccess: () => { onDone(); setQty({}); setErr(null); onClose(); },
     onError: (e) => setErr(e instanceof ApiError ? e.message : 'Could not post.'),
   });
@@ -169,14 +176,14 @@ function Move({ kind, order, open, onClose, onDone }: { kind: OrderKind; order: 
     m.mutate();
   };
   return (
-    <Dialog open={open} onClose={() => { setErr(null); onClose(); }} title={`${O.Act} goods`}>
+    <Dialog open={open} onClose={() => { setErr(null); onClose(); }} title={mode === 'return' ? 'Return goods' : `${O.Act} goods`}>
       <form onSubmit={submit} className="stack" noValidate>
         <div><label htmlFor="mdt">Date</label><input id="mdt" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 'auto' }} /></div>
-        {order.lines.filter((l) => l.open_qty !== '0.0000').map((l) => (
-          <div key={l.id}><label htmlFor={`q${l.id}`}>{l.sku} · {l.item_name} (open {qtyText(l.open_qty)})</label><input id={`q${l.id}`} inputMode="decimal" value={qty[l.id] ?? ''} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} style={{ maxWidth: 140 }} /></div>
+        {order.lines.filter((l) => (mode === 'return' ? l.done_qty !== '0.0000' : l.open_qty !== '0.0000')).map((l) => (
+          <div key={l.id}><label htmlFor={`q${l.id}`}>{l.sku} · {l.item_name} ({mode === 'return' ? `${qtyText(l.done_qty)} ${kind === 'po' ? 'received' : 'delivered'}` : `open ${qtyText(l.open_qty)}`})</label><input id={`q${l.id}`} inputMode="decimal" value={qty[l.id] ?? ''} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} style={{ maxWidth: 140 }} /></div>
         ))}
         {err && <div className="field-error" role="alert">{err}</div>}
-        <div className="row"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={m.isPending}>{O.Act}</button></div>
+        <div className="row"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={m.isPending}>{mode === 'return' ? 'Return' : O.Act}</button></div>
       </form>
     </Dialog>
   );

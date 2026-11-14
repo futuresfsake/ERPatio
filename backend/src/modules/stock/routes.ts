@@ -3,7 +3,7 @@ import { P, requirePermission } from '../../lib/permissions.js';
 import { route } from '../../lib/route.js';
 import { IdParam } from '../ledger/schemas.js';
 import * as svc from './service.js';
-import { AdjustIn, AsOfQuery, ItemIn, ItemPatch, OrderListQuery, PoIn, ReceiveIn, SoIn } from './schemas.js';
+import { AdjustIn, AsOfQuery, FromOrderIn, ItemIn, ItemPatch, OrderListQuery, PoIn, ReceiveIn, SoIn } from './schemas.js';
 
 export function stockRouter(prefix: string): Router {
   const r = Router();
@@ -22,6 +22,17 @@ export function stockRouter(prefix: string): Router {
     handler: ({ principal, query }) => svc.valuation(principal, query.as_of ?? new Date().toISOString().slice(0, 10)) });
   route(r, prefix, { method: 'get', path: '/stock-commitments', tag: 'supply-chain', summary: 'Open purchase and sales quantities per item', guard: requirePermission(P.ORDERS_READ),
     handler: ({ principal }) => svc.reorderView(principal) });
+
+  route(r, prefix, { method: 'get', path: '/reports/reorder', tag: 'reports', summary: 'Items at or below their reorder level', guard: requirePermission(P.INVENTORY_READ),
+    handler: ({ principal }) => svc.reorderReport(principal) });
+  route(r, prefix, { method: 'post', path: '/purchase-orders/:id/bill', tag: 'supply-chain', summary: 'Draft a bill for goods received and not yet billed', status: 201, guard: requirePermission(P.PAYABLES_WRITE), params: IdParam, body: FromOrderIn,
+    handler: ({ principal, params, body, req }) => svc.billFromOrder(principal, params.id, body, req.ip) });
+  route(r, prefix, { method: 'post', path: '/sales-orders/:id/invoice', tag: 'supply-chain', summary: 'Draft an invoice for goods delivered and not yet invoiced', status: 201, guard: requirePermission(P.RECEIVABLES_WRITE), params: IdParam, body: FromOrderIn,
+    handler: ({ principal, params, body, req }) => svc.invoiceFromOrder(principal, params.id, body, req.ip) });
+  route(r, prefix, { method: 'post', path: '/purchase-orders/:id/return', tag: 'supply-chain', summary: 'Return received goods to the supplier (before billing)', guard: requirePermission(P.INVENTORY_WRITE), params: IdParam, body: ReceiveIn,
+    handler: ({ principal, params, body, req }) => svc.returnGoods(principal, 'po', params.id, body, req.ip) });
+  route(r, prefix, { method: 'post', path: '/sales-orders/:id/return', tag: 'supply-chain', summary: 'Take back delivered goods from the customer (before invoicing)', guard: requirePermission(P.INVENTORY_WRITE), params: IdParam, body: ReceiveIn,
+    handler: ({ principal, params, body, req }) => svc.returnGoods(principal, 'so', params.id, body, req.ip) });
 
   const sides = [
     { k: 'po', path: 'purchase-orders', body: PoIn, act: 'receive', actSummary: 'Receive goods against' },

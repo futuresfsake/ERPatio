@@ -11,7 +11,8 @@ import type { Principal } from '../../lib/security.js';
 import { recordAudit } from '../audit/audit.js';
 import { insertEntry } from '../ledger/service.js';
 import type { EntryIn } from '../ledger/schemas.js';
-import type { AdjustIn, ItemIn, ItemPatch, PoIn, ReceiveIn, SoIn } from './schemas.js';
+import { createDraftInTx } from '../subledger/service.js';
+import type { AdjustIn, FromOrderIn, ItemIn, ItemPatch, PoIn, ReceiveIn, SoIn } from './schemas.js';
 
 const U = 10000n; // 1.0000
 const roundCent = (u: bigint): bigint => ((u + 50n) / 100n) * 100n;
@@ -19,7 +20,7 @@ const roundCent = (u: bigint): bigint => ((u + 50n) / 100n) * 100n;
 const extend = (q: bigint, price: bigint): bigint => roundCent((q * price) / U);
 
 // ------------------------------------------------------------------ items
-const ITEM_SELECT = `SELECT i.id, i.sku, i.name, i.uom, i.is_active, s.qty::text AS qty_on_hand, s.value::text AS value_on_hand,
+const ITEM_SELECT = `SELECT i.id, i.sku, i.name, i.uom, i.is_active, i.reorder_level::text, (s.qty <= i.reorder_level AND i.reorder_level > 0) AS below_reorder, s.qty::text AS qty_on_hand, s.value::text AS value_on_hand,
   CASE WHEN s.qty > 0 THEN round(s.value / s.qty, 4)::text ELSE '0.0000' END AS avg_cost
   FROM items i JOIN item_stock s ON s.item_id = i.id AND s.tenant_id = i.tenant_id`;
 
@@ -36,8 +37,8 @@ export const createItem = (p: Principal, a: ItemIn, ip?: string) =>
 
 export const updateItem = (p: Principal, id: string, patch: ItemPatch, ip?: string) =>
   withTenant(p.tenantId, async (c) => {
-    const r = await c.query('UPDATE items SET name = COALESCE($3, name), uom = COALESCE($4, uom), is_active = COALESCE($5, is_active) WHERE tenant_id = $1 AND id = $2',
-      [p.tenantId, id, patch.name ?? null, patch.uom ?? null, patch.is_active ?? null]);
+    const r = await c.query('UPDATE items SET name = COALESCE($3, name), uom = COALESCE($4, uom), is_active = COALESCE($5, is_active), reorder_level = COALESCE($6, reorder_level) WHERE tenant_id = $1 AND id = $2',
+      [p.tenantId, id, patch.name ?? null, patch.uom ?? null, patch.is_active ?? null, patch.reorder_level ?? null]);
     if (!r.rowCount) throw notFound('Item');
     await recordAudit(c, { tenantId: p.tenantId, action: 'item.updated', actorUserId: p.userId, entityType: 'item', entityId: id, ip, detail: { fields: Object.keys(patch).sort() } });
     return (await c.query(ITEM_SELECT + ' WHERE i.tenant_id = $1 AND i.id = $2', [p.tenantId, id])).rows[0];
@@ -67,7 +68,7 @@ async function accountsFor(c: PoolClient, tenantId: string): Promise<Accounts> {
   return { inventory: r.inventory_account_id, cogs: r.cogs_account_id, grni: r.grni_account_id, adjustment: r.adjustment_account_id };
 }
 
-interface Move { itemId: string; kind: 'receipt' | 'issue' | 'adjust_in' | 'adjust_out'; qty: bigint; unitCost?: bigint; note?: string }
+interface Move { itemId: string; kind: 'receipt' | 'issue' | 'adjust_in' | 'adjust_out' | 'return_in' | 'return_out'; qty: bigint; unitCost?: bigint; note?: string }
 
 /**
  * Applies a batch of movements and writes one journal entry for the lot. Items are locked in id order so two
@@ -89,22 +90,25 @@ async function applyMovements(
   }
 
   const planned: { m: Move; qty: bigint; unitCost: bigint; value: bigint }[] = [];
-  let cogs = 0n; let grni = 0n;
+  let cogs = 0n; let grni = 0n; let cogsBack = 0n; let grniBack = 0n;
   for (const m of moves) {
     const s = stock.get(m.itemId)!;
-    if (m.kind === 'receipt' || m.kind === 'adjust_in') {
+    if (m.kind === 'receipt' || m.kind === 'adjust_in' || m.kind === 'return_in') {
       const unitCost = m.unitCost ?? 0n;
       const value = extend(m.qty, unitCost);
       s.qty += m.qty; s.value += value;
       planned.push({ m, qty: m.qty, unitCost, value });
       if (m.kind === 'receipt') grni += value;
+      if (m.kind === 'return_in') cogsBack += value;
     } else {
       if (m.qty > s.qty) throw new ApiError(409, 'insufficient_stock', 'There is not enough stock on hand for that quantity.');
-      const value = m.qty === s.qty ? s.value : roundCent((m.qty * s.value) / s.qty);
+      // A purchase return leaves at the price it came in at (capped at what the item holds); everything else at the average.
+      const value = m.qty === s.qty ? s.value : m.kind === 'return_out' && m.unitCost !== undefined ? (() => { const v = extend(m.qty, m.unitCost!); return v > s.value ? s.value : v; })() : roundCent((m.qty * s.value) / s.qty);
       const unitCost = s.qty > 0n ? (value * U) / m.qty : 0n;
       s.qty -= m.qty; s.value -= value;
       planned.push({ m, qty: -m.qty, unitCost, value: -value });
       if (m.kind === 'issue') cogs += value;
+      if (m.kind === 'return_out') grniBack += value;
     }
   }
 
@@ -118,6 +122,8 @@ async function applyMovements(
   if (inOut > 0n) cr(a.inventory, inOut, 'Stock out');
   if (grni > 0n) cr(a.grni, grni, 'Goods received not invoiced');
   if (cogs > 0n) dr(a.cogs, cogs, 'Cost of goods sold');
+  if (cogsBack > 0n) cr(a.cogs, cogsBack, 'Cost of goods returned');
+  if (grniBack > 0n) dr(a.grni, grniBack, 'Goods returned to supplier');
   const adjIn = planned.filter((x) => x.m.kind === 'adjust_in').reduce((t, x) => t + x.value, 0n);
   const adjOut = planned.filter((x) => x.m.kind === 'adjust_out').reduce((t, x) => t - x.value, 0n);
   if (adjIn > 0n) cr(a.adjustment, adjIn, 'Stock adjustment');
@@ -308,3 +314,95 @@ export const reorderView = (p: Principal) =>
     open_purchase: (await c.query(`SELECT l.item_id, sum(l.quantity - l.received_qty)::text AS qty FROM purchase_order_lines l JOIN purchase_orders o ON o.id = l.order_id AND o.tenant_id = l.tenant_id WHERE l.tenant_id = $1 AND o.status = 'open' GROUP BY l.item_id`, [p.tenantId])).rows,
     open_sales: (await c.query(`SELECT l.item_id, sum(l.quantity - l.delivered_qty)::text AS qty FROM sales_order_lines l JOIN sales_orders o ON o.id = l.order_id AND o.tenant_id = l.tenant_id WHERE l.tenant_id = $1 AND o.status = 'open' GROUP BY l.item_id`, [p.tenantId])).rows,
   }));
+
+// ------------------------------------------------------------------ returns
+/**
+ * Return goods: to the supplier (kind 'po', only what has been received and not yet billed) or from the customer
+ * (kind 'so', only what has been delivered and not yet invoiced). Anything already billed or invoiced is corrected
+ * with a credit or debit note instead. The order line's count goes down and a closed order reopens.
+ */
+export const returnGoods = (p: Principal, k: Kind, id: string, data: ReceiveIn, ip?: string) =>
+  withTenant(p.tenantId, async (c) => {
+    const st = await lockOrder(c, p.tenantId, k, id);
+    if (st !== 'open' && st !== 'closed') throw new ApiError(409, 'not_returnable', 'Only an approved order can have goods returned.');
+    const ids = data.lines.map((l) => l.line_id);
+    if (new Set(ids).size !== ids.length) throw new ApiError(422, 'duplicate_line', 'Each line can appear once.');
+    const billed = k === 'po' ? 'billed_qty' : 'invoiced_qty';
+    const rows = (await c.query<{ id: string; item_id: string; price: string; done: string; billed: string }>(
+      'SELECT id, item_id, ' + T[k].price + '::text AS price, ' + T[k].done + '::text AS done, ' + billed + '::text AS billed FROM ' + T[k].lines +
+      ' WHERE tenant_id = $1 AND order_id = $2 AND id = ANY($3::uuid[]) ORDER BY id FOR UPDATE', [p.tenantId, id, ids])).rows;
+    if (rows.length !== ids.length) throw new ApiError(422, 'invalid_line', 'Every line must belong to this order.');
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const moves: Move[] = [];
+    for (const l of data.lines) {
+      const r = byId.get(l.line_id)!;
+      const q = toUnits(l.quantity);
+      if (q > toUnits(r.done) - toUnits(r.billed)) throw new ApiError(422, 'over_return', 'You can only return goods that have not been billed or invoiced yet. Use a credit or debit note for the rest.');
+      if (k === 'po') moves.push({ itemId: r.item_id, kind: 'return_out', qty: q, unitCost: toUnits(r.price) });
+      else {
+        // Back in at what the delivery cost, averaged over this order's issues of the item.
+        const m = (await c.query<{ q: string; v: string }>(
+          "SELECT COALESCE(-sum(qty), 0)::text AS q, COALESCE(-sum(value), 0)::text AS v FROM stock_movements WHERE tenant_id = $1 AND source_type = 'sales_order' AND source_id = $2 AND item_id = $3 AND kind = 'issue'",
+          [p.tenantId, id, r.item_id])).rows[0]!;
+        moves.push({ itemId: r.item_id, kind: 'return_in', qty: q, unitCost: toUnits(m.q) > 0n ? (toUnits(m.v) * U) / toUnits(m.q) : 0n });
+      }
+    }
+    const no = (await c.query<{ n: string }>('SELECT ' + T[k].no + '::text AS n FROM ' + T[k].table + ' WHERE tenant_id = $1 AND id = $2', [p.tenantId, id])).rows[0]!.n;
+    const res = await applyMovements(c, p, moves, data.date, { type: k === 'po' ? 'purchase_order' : 'sales_order', id },
+      `${k === 'po' ? 'Goods returned to supplier' : 'Goods returned by customer'} ${T[k].prefix}-${no}`, ip);
+    for (const l of data.lines) await c.query('UPDATE ' + T[k].lines + ' SET ' + T[k].done + ' = ' + T[k].done + ' - $3 WHERE tenant_id = $1 AND id = $2', [p.tenantId, l.line_id, l.quantity]);
+    await c.query('UPDATE ' + T[k].table + " SET status = 'open' WHERE tenant_id = $1 AND id = $2 AND status = 'closed'", [p.tenantId, id]);
+    await recordAudit(c, { tenantId: p.tenantId, action: k === 'po' ? 'purchase_order.returned' : 'sales_order.returned', actorUserId: p.userId, entityType: T[k].table, entityId: id, ip, detail: { lines: data.lines.length } });
+    return { order: await loadOrder(c, p.tenantId, k, id), journal_entry_id: res.entryId };
+  });
+
+// ------------------------------------------------------------------ bill and invoice from an order
+/**
+ * Three-way match for purchases: a draft bill for what has been received and not yet billed, at the order price,
+ * on the goods-received account, so posting the bill clears what receiving credited. Edit the draft for any price difference.
+ */
+export const billFromOrder = (p: Principal, id: string, opts: FromOrderIn, ip?: string) =>
+  withTenant(p.tenantId, async (c) => {
+    const o = await loadOrder(c, p.tenantId, 'po', id);
+    const a = await accountsFor(c, p.tenantId);
+    const open = (await c.query<{ id: string; sku: string; name: string; qty: string; price: string }>(
+      `SELECT l.id, i.sku, i.name, (l.received_qty - l.billed_qty)::text AS qty, l.unit_cost::text AS price
+         FROM purchase_order_lines l JOIN items i ON i.id = l.item_id AND i.tenant_id = l.tenant_id
+        WHERE l.tenant_id = $1 AND l.order_id = $2 AND l.received_qty > l.billed_qty ORDER BY l.line_no`, [p.tenantId, id])).rows;
+    if (open.length === 0) throw new ApiError(409, 'nothing_to_bill', 'Nothing has been received and left unbilled on this order.');
+    const doc = await createDraftInTx(c, p, 'bill', {
+      party_id: o.party_id, doc_date: opts.doc_date ?? new Date().toISOString().slice(0, 10), reference: `PO-${o.no}`,
+      lines: open.map((l) => ({ description: `${l.sku} ${l.name}`.slice(0, 300), account_id: a.grni, quantity: l.qty, unit_price: l.price, tax_code_id: opts.tax_code_id ?? null, po_line_id: l.id })),
+    }, ip);
+    await recordAudit(c, { tenantId: p.tenantId, action: 'purchase_order.billed', actorUserId: p.userId, entityType: 'purchase_orders', entityId: id, ip, detail: { document: doc.id } });
+    return doc;
+  });
+
+/** A draft invoice for what has been delivered and not yet invoiced, at the order price, on the sales account. */
+export const invoiceFromOrder = (p: Principal, id: string, opts: FromOrderIn, ip?: string) =>
+  withTenant(p.tenantId, async (c) => {
+    const o = await loadOrder(c, p.tenantId, 'so', id);
+    const sales = (await c.query<{ id: string | null }>('SELECT sales_account_id AS id FROM tenant_settings WHERE tenant_id = $1', [p.tenantId])).rows[0]?.id;
+    if (!sales) throw new ApiError(409, 'no_sales_account', 'Set the sales revenue account in settings first.');
+    const open = (await c.query<{ id: string; sku: string; name: string; qty: string; price: string }>(
+      `SELECT l.id, i.sku, i.name, (l.delivered_qty - l.invoiced_qty)::text AS qty, l.unit_price::text AS price
+         FROM sales_order_lines l JOIN items i ON i.id = l.item_id AND i.tenant_id = l.tenant_id
+        WHERE l.tenant_id = $1 AND l.order_id = $2 AND l.delivered_qty > l.invoiced_qty ORDER BY l.line_no`, [p.tenantId, id])).rows;
+    if (open.length === 0) throw new ApiError(409, 'nothing_to_invoice', 'Nothing has been delivered and left uninvoiced on this order.');
+    const doc = await createDraftInTx(c, p, 'invoice', {
+      party_id: o.party_id, doc_date: opts.doc_date ?? new Date().toISOString().slice(0, 10), reference: `SO-${o.no}`,
+      lines: open.map((l) => ({ description: `${l.sku} ${l.name}`.slice(0, 300), account_id: sales, quantity: l.qty, unit_price: l.price, tax_code_id: opts.tax_code_id ?? null, so_line_id: l.id })),
+    }, ip);
+    await recordAudit(c, { tenantId: p.tenantId, action: 'sales_order.invoiced', actorUserId: p.userId, entityType: 'sales_orders', entityId: id, ip, detail: { document: doc.id } });
+    return doc;
+  });
+
+/** Items at or below their reorder level, with what is already on order and what is already promised. */
+export const reorderReport = (p: Principal) =>
+  withTenant(p.tenantId, async (c) =>
+    (await c.query(
+      `SELECT i.id, i.sku, i.name, i.uom, i.reorder_level::text, s.qty::text AS on_hand,
+              COALESCE((SELECT sum(l.quantity - l.received_qty) FROM purchase_order_lines l JOIN purchase_orders o ON o.id = l.order_id AND o.tenant_id = l.tenant_id WHERE l.tenant_id = i.tenant_id AND l.item_id = i.id AND o.status = 'open'), 0)::numeric(19,4)::text AS on_order,
+              COALESCE((SELECT sum(l.quantity - l.delivered_qty) FROM sales_order_lines l JOIN sales_orders o ON o.id = l.order_id AND o.tenant_id = l.tenant_id WHERE l.tenant_id = i.tenant_id AND l.item_id = i.id AND o.status = 'open'), 0)::numeric(19,4)::text AS committed
+         FROM items i JOIN item_stock s ON s.item_id = i.id AND s.tenant_id = i.tenant_id
+        WHERE i.tenant_id = $1 AND i.is_active AND i.reorder_level > 0 AND s.qty <= i.reorder_level ORDER BY i.sku`, [p.tenantId])).rows);
