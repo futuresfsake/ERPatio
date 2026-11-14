@@ -5,7 +5,7 @@
  * that creates tenants until email verification (US-120) exists.
  */
 import type { PoolClient } from 'pg';
-import { ALL_PERMISSIONS, DEMO_ROLE, SYSTEM_ROLES } from '../../lib/permissions.js';
+import { ALL_PERMISSIONS, DEMO_ROLE, MODULES, SYSTEM_ROLES } from '../../lib/permissions.js';
 import { defaultFiscalYears, monthRanges } from '../../lib/fiscal.js';
 import { hashPassword } from '../../lib/security.js';
 
@@ -35,14 +35,16 @@ async function setTenant(c: PoolClient, tenantId: string) {
 
 export async function provisionTenant(
   c: PoolClient,
-  o: { slug: string; name: string; isDemo?: boolean; fiscalYears?: number[] },
+  o: { slug: string; name: string; isDemo?: boolean; fiscalYears?: number[]; mfaRequiredRoles?: string[]; modules?: string[] },
 ): Promise<string> {
   const tid = (
     await c.query<{ id: string }>('INSERT INTO tenants (slug, name, is_demo) VALUES ($1, $2, $3) RETURNING id', [o.slug, o.name, o.isDemo ?? false])
   ).rows[0]!.id;
   await setTenant(c, tid);
   await c.query('INSERT INTO tenant_counters (tenant_id) VALUES ($1)', [tid]);
-  await c.query('INSERT INTO tenant_settings (tenant_id) VALUES ($1)', [tid]);
+  await c.query('INSERT INTO tenant_settings (tenant_id, mfa_required_roles) VALUES ($1, $2)', [tid, o.mfaRequiredRoles ?? []]);
+  const on = new Set(o.modules ?? ['finance']);
+  for (const m of MODULES) await c.query('INSERT INTO tenant_modules (tenant_id, module, enabled) VALUES ($1, $2, $3)', [tid, m, on.has(m)]);
   for (const year of o.fiscalYears ?? defaultFiscalYears())
     for (const m of monthRanges(year))
       await c.query('INSERT INTO fiscal_periods (tenant_id, year, month, start_date, end_date) VALUES ($1, $2, $3, $4, $5)', [tid, year, m.month, m.start, m.end]);

@@ -60,7 +60,7 @@ export async function seedDemo(reset: boolean): Promise<string> {
       // Append-only triggers are lifted for this one maintenance transaction, demo tenant only.
       const guarded = ['audit_log', 'journal_lines', 'journal_entries'];
       for (const t of guarded) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
-      for (const t of [...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
+      for (const t of [...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
         await c.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [existing.id]); // eslint-disable-line no-restricted-syntax
       for (const t of guarded) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);

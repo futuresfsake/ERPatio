@@ -12,9 +12,12 @@ import { buildOpenApi, route } from './lib/route.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { requestContext } from './middleware/requestContext.js';
 import { authRouter } from './modules/auth/routes.js';
+import { adminRouter } from './modules/admin/routes.js';
 import { draftsRouter } from './modules/drafts/routes.js';
 import { ledgerRouter } from './modules/ledger/routes.js';
 import { periodsRouter } from './modules/periods/routes.js';
+import { platformRouter } from './modules/platform/routes.js';
+import { privacyRouter } from './modules/privacy/routes.js';
 import { reportsRouter } from './modules/reports/routes.js';
 
 export const API = '/api/v1';
@@ -66,8 +69,8 @@ export function createApp(): Express {
     handler: (_req, _res, next) =>
       next(new ApiError(429, 'rate_limited', 'Too many attempts. Try again shortly.', { 'Retry-After': '60' })),
   });
-  app.use(`${API}/auth/login`, limiter);
-  app.use(`${API}/auth/refresh`, limiter);
+  for (const p of ['login', 'login/mfa', 'refresh', 'signup', 'verify-email', 'resend-verification', 'forgot-password', 'reset-password'])
+    app.use(`${API}/auth/${p}`, limiter);
 
   // Operational probes.
   const ops = express.Router();
@@ -93,6 +96,17 @@ export function createApp(): Express {
   app.use(API, draftsRouter(API));
   app.use(API, periodsRouter(API));
   app.use(API, reportsRouter(API));
+  app.use(API, privacyRouter(API));
+  app.use(API, adminRouter(API));
+  app.use(API, platformRouter(API));
+
+  const pub = express.Router();
+  route(pub, API, {
+    method: 'get', path: '/public-config', tag: 'ops', summary: 'What the sign-in page may offer',
+    guard: publicRoute('feature flags the sign-in page needs before anyone is signed in'),
+    handler: async () => ({ signup_enabled: getEnv().SIGNUP_ENABLED }),
+  });
+  app.use(API, pub);
 
   if (env.DOCS_ENABLED) {
     const docs = express.Router();

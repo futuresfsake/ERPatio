@@ -17,7 +17,10 @@ Synthetic data only, capped at 100 entries, reset nightly. The credentials are p
 You can try the interface now without any server: open [`docs/03-architecture/design/prototype/erpatio-prototype.html`](docs/03-architecture/design/prototype/erpatio-prototype.html) in a browser.
 
 ## What works today
+- Self-service sign-up with e-mail confirmation (off until a mail provider is set), password reset, two-factor sign-in (mandatory for administrators), a session list, and your own data export.
 - Sign in with workspace, email and password; rotating refresh tokens with theft detection; lock-out after 5 failures.
+- Administration: invite people, assign roles, custom roles, module subscriptions; erase a person without changing the books.
+- A platform operator console: suspend workspaces, switch modules, and open an audited, read-only support session.
 - General ledger: chart of accounts; balanced entries; drafts with optional approval (nobody approves their own entry); reversal, never edit; fiscal periods you can close and lock; trial balance, income statement and balance sheet with CSV export; audit log.
 - Role-based access, enforced on every route and checked again at startup.
 - Row-Level Security on every tenant table, tested by trying to read and write another tenant's rows.

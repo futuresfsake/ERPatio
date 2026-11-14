@@ -28,3 +28,30 @@ Financial ledger · Personal/payroll data · Credentials & tokens · Tenant isol
 
 ## Residual risks (for PO)
 Insider threat at vendor, third-party provider compromise, zero-days. Accepted with monitoring (US-109) — see Gap G-23.
+
+## Added threats (2026-11-14)
+| ID | STRIDE | Threat | Mitigation | Story |
+|---|---|---|---|---|
+| T-15 | Spoofing | Stolen password used without the second factor | TOTP 2FA, mandatory per role; codes single-use (replay refused); recovery codes hashed and single-use; wrong codes count towards lock-out | US-023 |
+| T-16 | Spoofing | Emailed link intercepted or reused | One-time tokens, SHA-256 stored, 30-minute reset and 48-hour verify expiry, a newer link replaces an older one, reset ends all sessions | US-015, US-120 |
+| T-17 | DoS | Mass sign-up creating workspaces | Sign-up off unless enabled and mail configured; per-IP rate limit; email must be confirmed before sign-in | US-010 |
+| T-18 | Info disclosure | Database copy read without the master key | Field-level envelope encryption; per-tenant data keys wrapped by a master key held outside the database; key rotation by re-wrap | US-111, US-108 |
+| T-19 | Info disclosure | Personal data kept longer than needed or impossible to remove | Retention engine for technical records; export and pseudonymising erasure that keeps the ledger | US-114, US-115, US-116 |
+| T-20 | DoS | Locking the shared demo account by guessing | The demo tenant is exempt from lock-out and rate-limited by address only | F-05 |
+| T-21 | Repudiation | Token replayed from two tabs mistaken for theft | Ten-second grace window for a just-rotated token; later replay revokes the family | F-03 |
+
+## Mitigation status (2026-11-14)
+Every threat is either **Done** (built and tested) or **Scheduled**. Residual risk and sign-off remain open: US-100 needs a security reviewer, who is not yet named.
+
+| Threat | Status | Evidence |
+|---|---|---|
+| T-01, T-02 | Done | `auth.test.ts`, `mfa.test.ts` |
+| T-03 | Done | parameterised SQL, lint rule, injection tests |
+| T-04, T-05 | Done | ledger and audit triggers, `ledger.test.ts` |
+| T-06 | Done | `tenancy.test.ts` |
+| T-07 | Done | field encryption, log masking, `privacy.test.ts`, `security.test.ts` |
+| T-08, T-13 | Partial | secret and dependency scans run in CI; first runs were green on 2026-11-14 |
+| T-09, T-10, T-11 | Done | error model, per-IP limits, default-deny |
+| T-12 | Scheduled | platform-admin impersonation (M1, US-022) |
+| T-14 | Done | synthetic data only (ADR-008) |
+| T-15 to T-21 | Done | `mfa.test.ts`, `account.test.ts`, `privacy.test.ts` |

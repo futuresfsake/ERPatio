@@ -15,6 +15,14 @@ export interface Principal {
   tenantId: string;
   roles: string[];
   permissions: string[];
+  /** Set when a role in this workspace must use 2FA and this user has not enrolled yet. */
+  mfaEnrollRequired?: boolean;
+  /** Modules the workspace has subscribed to. */
+  modules?: string[];
+  /** Set on a support session: the platform operator who is acting, read-only. */
+  impersonator?: string;
+  /** The refresh-token family this access token belongs to (for the sessions list). */
+  sessionId?: string;
 }
 
 let dummyHash: Promise<string> | undefined;
@@ -43,7 +51,7 @@ const keyOf = (secret: string) => new TextEncoder().encode(secret);
 
 export async function signAccessToken(p: Principal): Promise<{ token: string; expiresIn: number }> {
   const env = getEnv();
-  const token = await new SignJWT({ tid: p.tenantId, roles: p.roles, perms: p.permissions })
+  const token = await new SignJWT({ tid: p.tenantId, roles: p.roles, perms: p.permissions, ...(p.mfaEnrollRequired ? { mfa_enroll: true } : {}), ...(p.modules ? { mods: p.modules } : {}), ...(p.impersonator ? { imp: p.impersonator } : {}), ...(p.sessionId ? { sid: p.sessionId } : {}) })
     .setProtectedHeader({ alg: 'HS256', kid: kidOf(env.JWT_SECRET) })
     .setSubject(p.userId)
     .setIssuer(env.JWT_ISSUER)
@@ -68,12 +76,40 @@ export async function verifyAccessToken(token: string): Promise<Principal> {
     audience: env.JWT_AUDIENCE,
     requiredClaims: ['sub', 'tid', 'exp'],
   });
+  if (payload['purpose']) throw new Error('not an access token'); // a 2FA step token must never act as one
   return {
     userId: String(payload.sub),
     tenantId: String(payload['tid']),
     roles: (payload['roles'] as string[] | undefined) ?? [],
     permissions: (payload['perms'] as string[] | undefined) ?? [],
+    mfaEnrollRequired: payload['mfa_enroll'] === true,
+    modules: Array.isArray(payload['mods']) ? (payload['mods'] as string[]) : undefined,
+    impersonator: typeof payload['imp'] === 'string' ? payload['imp'] : undefined,
+    sessionId: typeof payload['sid'] === 'string' ? payload['sid'] : undefined,
   };
+}
+
+/** Short-lived token that proves the password step passed and a 2FA code is now needed. */
+export async function signMfaToken(userId: string, tenantId: string): Promise<string> {
+  const env = getEnv();
+  return new SignJWT({ tid: tenantId, purpose: 'mfa' })
+    .setProtectedHeader({ alg: 'HS256', kid: kidOf(env.JWT_SECRET) })
+    .setSubject(userId)
+    .setIssuer(env.JWT_ISSUER)
+    .setAudience(env.JWT_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(keyOf(env.JWT_SECRET));
+}
+
+export async function verifyMfaToken(token: string): Promise<{ userId: string; tenantId: string }> {
+  const env = getEnv();
+  const secrets = [env.JWT_SECRET, ...(env.JWT_SECRET_PREVIOUS ? [env.JWT_SECRET_PREVIOUS] : [])];
+  const secret = secrets.find((s) => kidOf(s) === decodeProtectedHeader(token).kid);
+  if (!secret) throw new Error('unknown key id');
+  const { payload } = await jwtVerify(token, keyOf(secret), { algorithms: ['HS256'], issuer: env.JWT_ISSUER, audience: env.JWT_AUDIENCE });
+  if (payload['purpose'] !== 'mfa') throw new Error('not an mfa token');
+  return { userId: String(payload.sub), tenantId: String(payload['tid']) };
 }
 
 export const hashRefreshToken = (raw: string): string => createHash('sha256').update(raw).digest('hex');

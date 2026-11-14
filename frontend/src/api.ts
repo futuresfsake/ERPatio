@@ -7,6 +7,8 @@ export interface SessionUser {
   full_name: string;
   roles: string[];
   permissions: string[];
+  mfa_enabled: boolean;
+  mfa_enrollment_required: boolean;
 }
 interface TokenResponse {
   access_token: string;
@@ -29,6 +31,11 @@ export class ApiError extends Error {
 let accessToken: string | null = null;
 let refreshing: Promise<TokenResponse | null> | null = null;
 let onSessionLost: () => void = () => undefined;
+let supportMode = false;
+/** A support session is read-only and must never silently turn into the operator's own session on a 401. */
+export const setSupportMode = (on: boolean) => {
+  supportMode = on;
+};
 
 export const setSessionLostHandler = (fn: () => void) => {
   onSessionLost = fn;
@@ -73,7 +80,10 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   const { json, ...rest } = init;
   const opts: RequestInit = json === undefined ? rest : { ...rest, body: JSON.stringify(json) };
   let res = await raw(path, opts);
-  if (res.status === 401 && !path.startsWith('/auth/')) {
+  if (res.status === 401 && !path.startsWith('/auth/') && supportMode) {
+    accessToken = null;
+    onSessionLost();
+  } else if (res.status === 401 && !path.startsWith('/auth/')) {
     if (await refreshSession()) res = await raw(path, opts);
     else {
       accessToken = null;
@@ -84,8 +94,21 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
-export async function login(workspace: string, email: string, password: string): Promise<SessionUser> {
-  const body = await api<TokenResponse>('/auth/login', { method: 'POST', json: { workspace, email, password } });
+export const setAccessToken = (t: string | null) => {
+  accessToken = t;
+};
+
+export type LoginResult = { kind: 'session'; user: SessionUser } | { kind: 'mfa'; mfaToken: string };
+
+export async function login(workspace: string, email: string, password: string): Promise<LoginResult> {
+  const body = await api<TokenResponse | { mfa_required: true; mfa_token: string }>('/auth/login', { method: 'POST', json: { workspace, email, password } });
+  if ('mfa_required' in body) return { kind: 'mfa', mfaToken: body.mfa_token };
+  accessToken = body.access_token;
+  return { kind: 'session', user: body.user };
+}
+
+export async function loginMfa(mfaToken: string, code: string): Promise<SessionUser> {
+  const body = await api<TokenResponse>('/auth/login/mfa', { method: 'POST', json: { mfa_token: mfaToken, code } });
   accessToken = body.access_token;
   return body.user;
 }
@@ -159,4 +182,58 @@ export const endpoints = {
   postDraft: (id: string) => api<Entry>(`/journal-drafts/${id}/post`, { method: 'POST', json: {} }),
   incomeStatement: (from: string, to: string) => api<IncomeStatement>(`/reports/income-statement?from=${from}&to=${to}`),
   balanceSheet: (asOf: string) => api<BalanceSheet>(`/reports/balance-sheet?as_of=${asOf}`),
+};
+
+// ---- account lifecycle, security and privacy ---------------------------------------------------------------
+export interface Me { id: string; tenant_id: string; full_name: string; email: string; roles: string[]; permissions: string[]; mfa_enabled: boolean; mfa_enrollment_required: boolean; recovery_codes_left: number }
+export interface SessionRow { id: string; started_at: string; last_active_at: string; ip: string | null; user_agent: string | null; current: boolean }
+
+export const account = {
+  publicConfig: () => api<{ signup_enabled: boolean }>('/public-config'),
+  signup: (b: { company: string; full_name: string; email: string; password: string; accept_privacy: true }) => api<{ message: string }>('/auth/signup', { method: 'POST', json: b }),
+  verifyEmail: (token: string) => api<{ message: string }>('/auth/verify-email', { method: 'POST', json: { token } }),
+  resend: (workspace: string, email: string) => api<{ message: string }>('/auth/resend-verification', { method: 'POST', json: { workspace, email } }),
+  forgot: (workspace: string, email: string) => api<{ message: string }>('/auth/forgot-password', { method: 'POST', json: { workspace, email } }),
+  reset: (token: string, password: string) => api<{ message: string }>('/auth/reset-password', { method: 'POST', json: { token, password } }),
+  me: () => api<Me>('/auth/me'),
+  setup2fa: () => api<{ secret: string; otpauth_url: string }>('/auth/2fa/setup', { method: 'POST', json: {} }),
+  enable2fa: async (code: string) => {
+    const r = await api<{ recovery_codes: string[]; access_token: string; expires_in: number }>('/auth/2fa/enable', { method: 'POST', json: { code } });
+    setAccessToken(r.access_token); // the new token no longer carries the enrolment gate
+    return r;
+  },
+  disable2fa: (password: string, code: string) => api<{ mfa_enabled: boolean }>('/auth/2fa/disable', { method: 'POST', json: { password, code } }),
+  sessions: () => api<SessionRow[]>('/auth/sessions'),
+  revokeSession: (id: string) => api<void>(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  revokeAll: () => api<{ revoked: number }>('/auth/sessions/revoke-all', { method: 'POST', json: {} }),
+  exportMine: () => api<unknown>('/privacy/me/export'),
+};
+
+// ---- administration and platform ----------------------------------------------------------------------------
+export interface Person { id: string; email: string; full_name: string; is_active: boolean; email_verified: boolean; totp_enabled: boolean; last_login_at: string | null; created_at: string; erased_at: string | null; invite_pending: boolean; roles: { id: string; name: string }[] }
+export interface RoleRow { id: string; name: string; description: string | null; is_system: boolean; permissions: string[]; user_count: number }
+export interface PermissionInfo { key: string; label: string; module: string }
+export interface TenantInfo { slug: string; name: string; is_demo: boolean; base_currency: string; modules: { module: string; enabled: boolean }[] }
+export interface PlatformTenant { id: string; slug: string; name: string; status: 'active' | 'suspended'; is_demo: boolean; users: number; entries: number; created_at: string; modules: { module: string; enabled: boolean }[] }
+export interface SupportSession { access_token: string; expires_in: number; tenant: { id: string; slug: string; name: string } }
+
+export const admin = {
+  tenant: () => api<TenantInfo>('/tenant'),
+  users: () => api<Person[]>('/users'),
+  invite: (b: { email: string; full_name: string; role_ids: string[] }) => api<Person>('/users', { method: 'POST', json: b }),
+  patchUser: (id: string, b: { full_name?: string; is_active?: boolean }) => api<Person>(`/users/${id}`, { method: 'PATCH', json: b }),
+  setRoles: (id: string, role_ids: string[]) => api<Person>(`/users/${id}/roles`, { method: 'PATCH', json: { role_ids } }),
+  resendInvite: (id: string) => api<{ sent: true }>(`/users/${id}/resend-invite`, { method: 'POST', json: {} }),
+  roles: () => api<RoleRow[]>('/roles'),
+  permissions: () => api<PermissionInfo[]>('/permissions'),
+  createRole: (b: { name: string; description?: string; permissions: string[] }) => api<RoleRow>('/roles', { method: 'POST', json: b }),
+  updateRole: (id: string, b: { name?: string; description?: string; permissions?: string[] }) => api<RoleRow>(`/roles/${id}`, { method: 'PATCH', json: b }),
+  deleteRole: (id: string) => api<void>(`/roles/${id}`, { method: 'DELETE' }),
+};
+
+export const platform = {
+  tenants: () => api<PlatformTenant[]>('/platform/tenants'),
+  setStatus: (id: string, status: 'active' | 'suspended') => api<{ status: string }>(`/platform/tenants/${id}/status`, { method: 'POST', json: { status } }),
+  setModules: (id: string, modules: Record<string, boolean>) => api<{ module: string; enabled: boolean }[]>(`/platform/tenants/${id}/modules`, { method: 'PATCH', json: { modules } }),
+  support: (id: string, reason: string) => api<SupportSession>(`/platform/tenants/${id}/support-session`, { method: 'POST', json: { reason } }),
 };

@@ -98,7 +98,8 @@ describe('refresh rotation', () => {
     const second = cookieOf(r2);
     expect(second.split(';')[0]).not.toEqual(first.split(';')[0]);
 
-    // Replaying the first (already rotated) token is treated as theft.
+    // Replaying the first (already rotated) token long after the rotation is treated as theft.
+    await owner.query("UPDATE refresh_tokens SET revoked_at = now() - interval '1 minute' WHERE revoked_at IS NOT NULL AND replaced_by IS NOT NULL");
     expect((await refreshWith(first)).status).toBe(401);
     // ... which also kills the legitimately rotated token.
     expect((await refreshWith(second)).status).toBe(401);

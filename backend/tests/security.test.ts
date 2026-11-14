@@ -43,8 +43,10 @@ describe('default deny (FR-AUT-07, US-124)', () => {
   it('the public allow-list is exactly the intended set', () => {
     const open = apiDocs.filter((d) => d.guard.kind === 'public').map((d) => `${d.method} ${d.path}`).sort();
     expect(open).toEqual([
-      'get /api/v1/openapi.json', 'get /health', 'get /ready',
-      'post /api/v1/auth/login', 'post /api/v1/auth/logout', 'post /api/v1/auth/refresh',
+      'get /api/v1/openapi.json', 'get /api/v1/public-config', 'get /health', 'get /ready',
+      'post /api/v1/auth/forgot-password', 'post /api/v1/auth/login', 'post /api/v1/auth/login/mfa', 'post /api/v1/auth/logout',
+      'post /api/v1/auth/refresh', 'post /api/v1/auth/resend-verification', 'post /api/v1/auth/reset-password',
+      'post /api/v1/auth/signup', 'post /api/v1/auth/verify-email',
     ]);
   });
 });
@@ -156,6 +158,13 @@ describe('configuration guards (NFR-08)', () => {
     resetEnvCache();
     expect(() => getEnv()).toThrow(/CORS/);
     process.env.CORS_ORIGINS = 'https://erpatio.example';
+    resetEnvCache();
+    expect(() => getEnv()).toThrow(/MASTER_KEY/);
+    process.env.MASTER_KEY = Buffer.alloc(32, 7).toString('base64');
+    process.env.SIGNUP_ENABLED = 'true';
+    resetEnvCache();
+    expect(() => getEnv()).toThrow(/SMTP_URL/);
+    process.env.SIGNUP_ENABLED = 'false';
     resetEnvCache();
     expect(() => getEnv()).not.toThrow();
   });

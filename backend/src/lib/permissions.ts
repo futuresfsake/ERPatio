@@ -2,6 +2,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ApiError } from './errors.js';
 import { als } from './logger.js';
+import { recordDenied } from './security-events.js';
 import { verifyAccessToken, type Principal } from './security.js';
 
 export const P = {
@@ -16,14 +17,40 @@ export const P = {
   REPORTS_READ: 'reports:read',
   AUDIT_READ: 'audit:read',
   USERS_READ: 'users:read',
+  PRIVACY_MANAGE: 'privacy:manage',
+  USERS_MANAGE: 'users:manage',
+  ROLES_MANAGE: 'roles:manage',
+  PLATFORM_MANAGE: 'platform:manage',
 } as const;
 export type Permission = (typeof P)[keyof typeof P];
 export const ALL_PERMISSIONS: Permission[] = Object.values(P);
+/** What a workspace can ever grant. `platform:manage` belongs to the operator's own tenant only. */
+export const TENANT_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter((p) => p !== P.PLATFORM_MANAGE);
+
+export type Module = 'finance' | 'supply_chain' | 'production' | 'hcm' | 'bi';
+export const MODULES: Module[] = ['finance', 'supply_chain', 'production', 'hcm', 'bi'];
+/** Which subscribed module a permission belongs to. 'core' is always available. */
+export const MODULE_OF: Record<Permission, Module | 'core' | 'platform'> = {
+  'accounts:read': 'finance', 'accounts:write': 'finance', 'journal:read': 'finance', 'journal:post': 'finance',
+  'journal:reverse': 'finance', 'journal:approve': 'finance', 'reports:read': 'finance', 'periods:manage': 'finance',
+  'audit:read': 'core', 'settings:manage': 'core', 'users:read': 'core', 'users:manage': 'core', 'roles:manage': 'core',
+  'privacy:manage': 'core', 'platform:manage': 'platform',
+};
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  'accounts:read': 'See the chart of accounts', 'accounts:write': 'Add and change accounts',
+  'journal:read': 'See journal entries and drafts', 'journal:post': 'Save drafts, post and submit entries',
+  'journal:reverse': 'Reverse posted entries', 'journal:approve': 'Approve entries and send them back',
+  'reports:read': 'See reports and fiscal periods', 'periods:manage': 'Close and reopen fiscal periods',
+  'audit:read': 'Read the audit log', 'settings:manage': 'Change workspace settings',
+  'users:read': 'See people and roles', 'users:manage': 'Invite, deactivate and assign roles to people',
+  'roles:manage': 'Create and change custom roles', 'privacy:manage': 'Export and erase personal data',
+  'platform:manage': 'Operate the platform',
+};
 
 const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ];
 
 export const SYSTEM_ROLES: Record<string, Permission[]> = {
-  TenantAdmin: ALL_PERMISSIONS,
+  TenantAdmin: TENANT_PERMISSIONS,
   Accountant: accountant,
   Viewer: [P.ACCOUNTS_READ, P.JOURNAL_READ, P.REPORTS_READ],
   // Customer persona: the finance manager approves entries, closes periods and sets the approval policy.
@@ -56,7 +83,7 @@ export const publicRoute = (reason: string): Guarded =>
   tag((_req: Request, _res: Response, next: NextFunction) => next(), { kind: 'public', reason });
 
 /** `null` = any authenticated user (e.g. /auth/me). */
-export function requirePermission(permission: Permission | null): Guarded {
+export function requirePermission(permission: Permission | null, opts: { allowMfaEnroll?: boolean } = {}): Guarded {
   const handler: RequestHandler = async (req, _res, next) => {
     const header = req.headers.authorization ?? '';
     const [scheme, token] = header.split(' ');
@@ -71,8 +98,15 @@ export function requirePermission(permission: Permission | null): Guarded {
     const ctx = als.getStore();
     if (ctx) ctx.tenantId = principal.tenantId;
     req.principal = principal;
-    if (permission && !principal.permissions.includes(permission))
+    const mod = permission ? MODULE_OF[permission] : null;
+    if (mod && mod !== 'core' && mod !== 'platform' && !(principal.modules ?? ['finance']).includes(mod))
+      return next(new ApiError(403, 'module_disabled', 'This module is not part of your subscription.'));
+    if (principal.mfaEnrollRequired && !opts.allowMfaEnroll)
+      return next(new ApiError(403, 'mfa_enrollment_required', 'Set up two-factor sign-in before continuing.'));
+    if (permission && !principal.permissions.includes(permission)) {
+      recordDenied(principal, permission, req.method, req.path);
       return next(new ApiError(403, 'forbidden', 'You do not have permission to do that.'));
+    }
     next();
   };
   return tag(handler, permission ? { kind: 'permission', permission } : { kind: 'authenticated' });

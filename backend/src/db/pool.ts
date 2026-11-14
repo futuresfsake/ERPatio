@@ -62,6 +62,30 @@ async function tx<T>(
   }
 }
 
+/**
+ * Runs on the owner connection WITHOUT dropping to the application role. Only the platform-operator
+ * module may use this; it exists because that module is the one thing that legitimately crosses tenants.
+ * When a tenant id is given the row-level-security setting is set to it for the transaction.
+ *
+ * WARNING: the owner role usually has BYPASSRLS (Neon's default does), so that setting does NOT filter anything
+ * here. Every query run through this helper must carry its own explicit `tenant_id` condition.
+ */
+export async function withOwner<T>(fn: (c: pg.PoolClient) => Promise<T>, tenantId?: string): Promise<T> {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    if (tenantId) await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export const withTenant = <T>(tenantId: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> =>
   tx(async (c) => {
     await c.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);

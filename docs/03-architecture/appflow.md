@@ -18,6 +18,10 @@ Roles are system roles seeded per tenant (`backend/src/lib/permissions.ts`). Per
 | Close or reopen a period, add a fiscal year | `periods:manage` | ✔ | ✔ | | | |
 | Settings (approval policy) | `settings:manage` | ✔ | ✔ | | | |
 | Audit log | `audit:read` | ✔ | ✔ | | ✔ | |
+| See people and roles | `users:read` | ✔ | | | | |
+| Invite, deactivate, assign roles | `users:manage` | ✔ | | | | |
+| Create and edit custom roles | `roles:manage` | ✔ | | | | |
+| Export or erase another person's data | `privacy:manage` | ✔ | | | | |
 
 `FinanceManager` is the customer's finance manager (Lea in the profile). The public `DemoUser` cannot approve, close periods or change settings, so visitors cannot lock the demo for each other ([ADR-008](adr/ADR-008-public-demo-workspace.md)).
 A route without a declared permission cannot be registered, and the server refuses to start if one slips in (US-124).
@@ -94,6 +98,49 @@ What the person sees: wrong details always read "Invalid workspace, email or pas
 
 The demo shortcut: the sign-in page prints the demo credentials and a "Fill these in" link. See §8.
 
+### 3.1 Create a workspace
+
+```mermaid
+sequenceDiagram
+  actor P as Person
+  participant W as React app
+  participant A as API
+  participant M as Mail
+  P->>W: company, name, email, password, accepts privacy notice
+  W->>A: POST /auth/signup
+  A->>A: sign-up open? password 12+ chars? not in a known breach? consent given?
+  A->>A: one transaction: workspace, 36 periods, 16 accounts, administrator (unconfirmed), consent record, one-time token
+  A->>M: confirmation link (48 hours, works once)
+  A-->>W: 202 "check your email"
+  P->>W: opens the link
+  W->>A: POST /auth/verify-email
+  A-->>W: confirmed; sign in
+  Note over P,A: The new administrator's role must use 2FA, so the first sign-in goes straight to setup (3.3)
+```
+
+Sign-up is off unless `SIGNUP_ENABLED` is set, and production refuses to start with it on and no mail provider.
+
+### 3.2 Forgot or reset a password
+
+The request always answers "if that account exists, an email is on its way", for known and unknown accounts alike. The link is one-time, 30 minutes, and a newer link replaces an older one. Setting the new password ends every session of that person, unlocks the account, and counts as confirming the address. The shared demo account never receives a reset.
+
+### 3.3 Two-factor sign-in
+
+```mermaid
+flowchart TD
+  L[Password correct] --> E{2FA on?}
+  E -->|no, and this role must use it| G[Signed in, but only Account security and /me are reachable: 403 mfa_enrollment_required]
+  G --> SU[Account security: scan the QR code, enter a code]
+  SU --> RC[8 recovery codes shown once; the gate lifts]
+  E -->|no, not required| S[Signed in]
+  E -->|yes| T[Step token, no session yet, valid 5 minutes]
+  T --> C{6-digit code or a recovery code}
+  C -->|valid and unused| S
+  C -->|wrong, or already used| F[401; counts towards lock-out]
+```
+
+A code works once (a replay of the same time step is refused). A recovery code works once. Turning 2FA off needs the password and a current code, and is refused for a role that must use it. The shared demo workspace cannot enrol.
+
 ## 4. Staying signed in (refresh rotation)
 
 ```mermaid
@@ -120,7 +167,8 @@ sequenceDiagram
 - Sign out revokes the whole family and clears the cookie.
 - The refresh cookie is `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`. The page cannot read it.
 - Inside one tab, simultaneous requests share a single in-flight refresh.
-- Known limit: two tabs that refresh at the same instant both present the old cookie. The second one looks like token theft, so the whole session family is revoked and the person signs in again. A short grace window for the previous token is the planned fix (audit finding F-03).
+- Two tabs refreshing at the same instant: the second presents a token that was rotated a moment ago. Within a 10-second grace window it receives an access token only (the browser already holds the newer cookie), so nobody is signed out. A rotated token coming back after the window is treated as theft.
+- **Account security** lists where you are signed in, signs out one device or everywhere, and downloads everything held about you.
 
 ## 5. Post a journal entry
 
@@ -271,14 +319,37 @@ Why this order matters
 - The tenant is taken from the signed token, never from the URL or body, so a request cannot ask for another tenant's data.
 - Row-Level Security is the safety net: even a query that forgets its tenant filter returns only that tenant's rows. With no tenant context it returns nothing.
 
+## 9.1 Administration
+
+| Who | Does | Guard rails |
+|---|---|---|
+| Administrator | **People**: invite by email (they choose their own password from a 72-hour link), deactivate and reactivate, assign roles, resend | You can only give roles whose permissions you hold; a workspace always keeps one active administrator; you cannot deactivate yourself; deactivation ends sessions and keeps the records |
+| Administrator | **Roles**: see built-in roles, create custom ones from a checklist of permissions | Built-in roles are fixed; a role in use cannot be deleted; you cannot include a permission you do not hold; the platform permission cannot be granted |
+| Administrator | **Settings**, **Audit log**, export or erase a person's data | Erasure replaces name and email with a pseudonym, clears addresses and ends sessions; entries and totals do not change |
+
+The shared demo workspace blocks all of this, so visitors cannot change people or roles.
+
+## 9.2 Platform operator
+
+```mermaid
+flowchart LR
+  O([Operator, 2FA required]) --> L[Workspaces list: people, entries, modules]
+  L --> SU{Suspend / Reactivate}
+  SU -->|suspend| X[Sign-in and refresh refused; sessions revoked; logged in that workspace]
+  L --> MO[Switch modules per workspace; the workspace feels it at its next sign-in]
+  L --> SS[Support session: reason of 8+ characters]
+  SS --> R[15 minutes, read-only, no refresh; banner shown; logged in the customer's audit log with the reason]
+```
+
+An operator has no books of their own, so their home page is the workspace list. See [ADR-010](adr/ADR-010-platform-operator.md).
+
 ## 10. Not built yet
 
 | Flow | Status | Planned in |
 |---|---|---|
-| Self-service company sign-up and e-mail verification | Not built (tenants are provisioned by script) | M0 (US-010, US-120) |
-| Password reset, two-factor sign-in, "sign out everywhere" | Not built | M0 (US-015, US-023, US-122) |
-| Users and roles administration | Not built | M1 |
 | Year-end closing, retained earnings roll-forward, comparative periods, PDF export | Not built | M2 |
 | Vendor bills, customer invoices, payments, AP/AR aging, VAT codes, multi-currency, bank reconciliation | Not built | M2 |
 | Auto-posting from stock and payroll | Not built | M3 onward |
-| Inventory, production, payroll, BI dashboards | Not built | M3–M6 |
+| Inventory, production, payroll, BI dashboards | Not built | M3 to M6 |
+| CSV import wizard, full workspace export, API keys, webhooks, billing | Not built | M6 |
+| Sending real e-mail (needs a mail provider) | Built; not used with a real provider yet | before sign-up is opened |
