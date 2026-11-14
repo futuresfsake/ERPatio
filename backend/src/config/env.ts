@@ -26,6 +26,13 @@ const schema = z
     DEMO_MAX_ENTRIES: z.coerce.number().int().default(100),
     TRUST_PROXY: z.coerce.number().int().default(0),
     STATIC_DIR: z.string().optional(),
+    MASTER_KEY: z.string().optional(),
+    MASTER_KEY_PREVIOUS: z.string().optional(),
+    SMTP_URL: z.string().optional(),
+    MAIL_FROM: z.string().default('ERPatio <no-reply@localhost>'),
+    APP_URL: z.string().default('http://localhost:5173'),
+    SIGNUP_ENABLED: bool.default(false),
+    HIBP_ENABLED: bool.default(true),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV !== 'production') return;
@@ -33,6 +40,10 @@ const schema = z
       ctx.addIssue({ code: 'custom', message: 'JWT_SECRET must be unique, random, 32+ characters' });
     if (!v.COOKIE_SECURE) ctx.addIssue({ code: 'custom', message: 'COOKIE_SECURE must be true in production' });
     if (v.CORS_ORIGINS.includes('*')) ctx.addIssue({ code: 'custom', message: 'Wildcard CORS is not allowed' });
+    if (!v.MASTER_KEY || Buffer.from(v.MASTER_KEY, 'base64').length !== 32)
+      ctx.addIssue({ code: 'custom', message: 'MASTER_KEY must be 32 random bytes, base64 encoded' });
+    if (v.SIGNUP_ENABLED && !v.SMTP_URL)
+      ctx.addIssue({ code: 'custom', message: 'SIGNUP_ENABLED needs SMTP_URL, or verification e-mails go nowhere' });
   });
 
 export type Env = z.infer<typeof schema> & { corsOrigins: string[] };

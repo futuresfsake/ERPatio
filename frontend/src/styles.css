@@ -143,6 +143,15 @@ dl.kv dd { margin: 0; }
 .tabs a[aria-current='true'] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 500; }
 .statement .ln .mono { font-size: 12px; margin-right: 4px; }
 
+.codes { list-style: none; margin: 14px 0; padding: 14px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 24px; background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--r); font: 500 14px var(--mono); max-width: 420px; }
+.notice.warn { border-left-color: var(--ink); }
+details > summary { cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; width: fit-content; }
+
+.checks { display: grid; gap: 8px; }
+.checks label { display: flex; gap: 10px; align-items: flex-start; font: 400 14px var(--sans); margin: 0; color: var(--ink); }
+.checks input[type='checkbox'] { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--ink); flex: none; }
+.banner-support { background: var(--ink); color: var(--on-ink); padding: 9px 20px 9px 56px; font-size: 13px; display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
 /* data block: where the assets sit. A ruled bar in shades of ink: no chart library, no colour. */
 .assets { margin-bottom: 26px; }
 .assetbar { display: flex; gap: 2px; height: 16px; margin: 8px 0 12px; border-bottom: 1px solid var(--ink); }

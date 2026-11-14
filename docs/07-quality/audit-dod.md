@@ -1,16 +1,15 @@
-# Definition-of-Done audit: M0 foundation slice
+# Definition-of-Done audit: M0, M1 and the finance slice
 
 | | |
 |---|---|
 | **Date** | 2026-11-14 |
-| **Audited** | Branch `feat/m0-foundation-neon-render`, cut from `main` at `76aaf45`. **No commits yet:** every change is uncommitted in the working tree (53 stories audited, about 70 new files, 37 moved docs). |
-| **Update** | 2026-11-14, second round: fiscal periods with close and lock, drafts with optional approval, income statement and balance sheet were built and are covered below |
-| **Compared with** | `origin/main` (docs only: no code existed) |
-| **How it was run** | Windows 11, Node 22.14, npm 10.9. PostgreSQL 17.4 on a throwaway local cluster, with an owner role that mimics Neon's (not superuser, `CREATEROLE`, `BYPASSRLS`). No mocks: the tests talk to real PostgreSQL |
+| **Audited** | Branch `feat/m0-complete`, cut from `main` at `25693e8` (the squash-merge of PR #1). Work is uncommitted until the single push |
+| **Compared with** | `main` (PR #1: foundation, ledger, drafts, periods, statements) |
+| **How it was run** | Windows 11, Node 22.14, npm 10.9. PostgreSQL 17.4 on a throwaway local cluster with an owner role that mimics Neon's (not superuser, `CREATEROLE`, `BYPASSRLS`). No mocks: tests talk to real PostgreSQL |
 | **Not audited** | See the list under the verdict |
-| **Definition of Done used** | [`04-delivery/20-definition-of-done.md`](../04-delivery/20-definition-of-done.md), the stories in `04-delivery/stories/` (EPIC-01, the M0 part of EPIC-02, EPIC-06, and the EPIC-03 stories the slice touches), and the M0 gate in [`15-milestones-roadmap.md`](../04-delivery/15-milestones-roadmap.md) |
+| **Definition of Done used** | [`04-delivery/20-definition-of-done.md`](../04-delivery/20-definition-of-done.md), the stories in `04-delivery/stories/` (EPIC-01, EPIC-02 incl. M1, EPIC-06, and the EPIC-03 stories built), and the M0 gate in [`15-milestones-roadmap.md`](../04-delivery/15-milestones-roadmap.md) |
 
-There is no Jira ticket for this work, so the criteria come from the repo's own stories. Story IDs are used as AC numbers.
+There is no Jira ticket, so the criteria come from the repo's own stories. Story IDs are used as AC numbers.
 
 ## Live demo
 
@@ -18,314 +17,308 @@ There is no Jira ticket for this work, so the criteria come from the repo's own 
 |---|---|
 | **URL** | **Not deployed. There is no live link yet.** Nothing in this report was verified on Render or Neon. |
 | Workspace / email / password | `casa-verde-demo` / `demo@erpatio.app` / `ERPatio-Demo-2026` (public on purpose, [ADR-008](../03-architecture/adr/ADR-008-public-demo-workspace.md)) |
-| What is ready | Blueprint [`render.yaml`](../../render.yaml), the [runbook](../06-operations/deployment-render-neon.md), the seed and nightly-reset scripts, the workflow `.github/workflows/demo-reset.yml` |
-| What it needs | Your Neon and Render accounts, a push to GitHub, then runbook steps 1 to 6. The runbook's step 6 lists the checks that turn this row into "verified live" |
+| What is ready | `render.yaml`, the [runbook](../06-operations/deployment-render-neon.md), seed and nightly-reset scripts, the nightly workflow |
+| What it needs | Your Neon and Render accounts, a master key, an SMTP account if sign-up is to be opened, then runbook steps 1 to 7 |
 | Last verified live | never |
 
 ## Verdict
 
-**Approved as the foundation to build on. Not approved for production or for real customer data.** The architecture, the isolation model and the test discipline meet the bar for M0. The product does not: 14 of 56 criteria are not met (3 more by decision), and the M0 gate is open.
+**Approved as the foundation to build on. Not approved for production or for real customer data.**
 
-Why it is not ready:
-1. **Not deployed or reviewed.** No push, no pull request, no CI run, no live URL. The Definition of Done item "reviewed via PR, CI green" is NOT MET.
-2. **M0 is incomplete.** Missing: self-service sign-up, e-mail verification, password reset, two-factor sign-in, field-level encryption, data-subject export and erasure, retention, consent, breach runbook, restore drill, threat-model sign-off (F-06, F-07).
-3. **The public demo has a known way to lock visitors out** (F-05). Anyone can lock `demo@erpatio.app` for 15 minutes with five wrong passwords. Fix before the link is shared.
-4. **Nothing was tried on real Neon** (F-02). The RLS role setup works on a local role that resembles Neon's, not on Neon itself.
-5. **Test strength is unproven** (F-12). The required break-it check was not run (see "Not run").
+What was built since the first audit: the rest of M0 (self-service sign-up, e-mail confirmation, password reset, two-factor sign-in, sessions list, field-level encryption, data export and erasure, retention, security events), all of M1 (people and roles administration, custom roles, module subscriptions, platform-operator tools with read-only support sessions), plus two runbooks. **M2's remaining finance (vendor bills, customer invoices and payments, aging, VAT, year-end closing, multi-currency) and M3 to M7 (supply chain, production, HR and payroll, dashboards and platform, hardening) are not started.**
 
-What is solid, with evidence: tenant isolation is enforced by the database and tested by trying to cross it; the ledger cannot be unbalanced or edited, even by SQL written directly; every route must declare a guard, and the server refuses to start otherwise; login does not reveal which accounts exist; refresh-token theft is detected.
+Why it is still not ready:
+1. **Not deployed.** No live URL. Nothing has run on real Neon or Render (F-01, F-02).
+2. **The M0 gate is still open.** Not done: restore drill, breach tabletop, security-reviewer sign-off on the threat model, legal review of the privacy notice (G-21), licence decision (G-15).
+3. **No real mail provider.** E-mail is held in memory unless `SMTP_URL` is set; production refuses `SIGNUP_ENABLED` without one. Sign-up, invitations and password reset have never sent a real message (F-30).
+4. **Test strength is unproven.** The break-it check has still not been run (F-12).
+5. **No end-to-end browser tests** for the React screens (F-11).
 
-**Conditions to move the demo from "approved to build" to "approved to publish":** fix F-05; deploy and pass runbook step 6; CI green on a pull request; choose a licence (G-15, the repo is public).
+What is solid, with evidence: tenant isolation by the database, tested by crossing it; an unbalanced, edited or out-of-period ledger entry is impossible even by writing SQL; every route must declare a guard; sign-in does not reveal which accounts exist; refresh-token theft is detected without punishing two tabs; two-factor codes cannot be replayed; encrypted fields are ciphertext in the database; erasure leaves the books unchanged; nobody can grant permissions they do not hold or remove the last administrator.
 
 **Not audited:**
-- The live deployment (Render, Neon, TLS, cold starts).
-- GitHub Actions: the workflows were written but have never run.
-- The real React app beyond its sign-in screen. Screens were reviewed in the HTML prototype (headless Edge screenshots) and the real build was seen at the sign-in page only. No end-to-end browser test exists.
-- Real phones, screen readers, keyboard-only use. Phone layout was checked at 500 px in headless Edge only.
-- Load and timing. No performance test was run.
-- Behaviour on Linux (development was on Windows; CI is Linux).
+- The live deployment (Render, Neon, TLS, cold starts) and a real SMTP provider.
+- The live Have I Been Pwned call (the code path is tested with an injected checker).
+- The React pages in a browser beyond the screenshots reviewed in earlier rounds; the new People, Roles, Operator, Security, sign-up and reset screens were checked by type-check, lint, build and the HTTP workflow below, not visually.
+- Real phones, screen readers, keyboard-only use. Load and timing.
+- Behaviour on Linux (development was on Windows; CI is Linux and ran green on PR #1).
 
 **Not run (and why):**
-- **Break-it check** (break the code on purpose, confirm the tests fail). Not run yet. The test database was stopped by the system for low memory in the first round and restarted later at the owner's request, so it can be run next. It is the most valuable remaining check.
-- Nothing else is pending from the first round. The full backend suite was re-run after the finance work: 103 of 103 passing.
+- **Break-it check** (break the code on purpose, expect failures). Not run. It is the most valuable remaining check.
+- **CI on this branch.** CI ran green on PR #1 (backend, frontend, secrets, CodeQL, GitGuardian). It has not run on the work in this report.
 
 ## Engineering checks
 
 | Check | Command | Result |
 |---|---|---|
-| Backend lint | `eslint .` | 0 problems (re-run 2026-11-14) |
-| Backend types | `tsc --noEmit` | 0 errors (re-run) |
-| Backend build | `tsc -p tsconfig.build.json` | builds (re-run) |
-| Backend tests | `vitest run` | **103 passed, 10 files** (2026-11-14, after the finance work) |
-| Frontend lint / types | `eslint .` / `tsc --noEmit` | 0 problems / 0 errors (re-run) |
-| Frontend tests | `vitest run` | 6 passed, 2 files (re-run) |
-| Frontend build | `vite build` | builds (re-run) |
-| Dependencies, frontend | `npm audit --omit=dev` | 0 vulnerabilities (re-run) |
-| Dependencies, backend | `npm audit --omit=dev` | **3 moderate**, all in `node-pg-migrate`'s `glob` and `minimatch` (F-10) |
-| Secret scan (local patterns) | grep for key, token and URL patterns over every committable file | none found. Only two literals match "password-like": the dev-only JWT fallback (production boot rejects it, tested) and the public demo password (intended) |
-| Docs links | script over all `.md` | 0 broken after the audit file existed |
+| Backend lint / types / build | `eslint .` / `tsc --noEmit` / `tsc -p tsconfig.build.json` | 0 problems / 0 errors / builds |
+| Backend tests | `vitest run` | **180 passed, 15 files** |
+| Frontend lint / types / build | `eslint .` / `tsc --noEmit` / `vite build` | 0 problems / 0 errors / builds |
+| Frontend tests | `vitest run` | 6 passed, 2 files |
+| Dependencies | `npm audit --omit=dev` | frontend 0; backend 3 moderate in `node-pg-migrate` (`glob`, `minimatch`; F-10) |
+| Secret scan | patterns over every committable file; GitGuardian and gitleaks on PR #1 | clean; the only allow-listed value is the public demo password (`.gitleaks.toml`, `.gitguardian.yaml`) |
+| Docs links | script over all `.md` | 0 broken |
 
-Bugs the checks found while building, all fixed with a regression test:
+Bugs found by the checks while building, all fixed with a regression test:
 
 | Found by | Bug |
 |---|---|
-| Code review before the tests | Login matched e-mails with `ILIKE`; `%` and `_` are legal e-mail characters, so `s_m@…` could match `sam@…`. Now an exact lower-case match. Test: `security.test.ts` "SQL metacharacters…" |
-| Tests | Log masking skipped the message when the fields object came first, and top-level `password` was not redacted. Fixed; test in `security.test.ts` |
-| Tests | The OpenAPI route registry duplicated entries when the app was created twice. Fixed |
-| End-to-end smoke test | The single-page-app fallback answered `204` instead of the page, because the route wrapper ended the response before `sendFile` finished. Fixed; `static.test.ts` |
-| End-to-end smoke test | Default CSP added `upgrade-insecure-requests` (breaks plain-HTTP local runs) and allowed any `https:` fonts and styles. Tightened to same-origin; asserted in `static.test.ts` |
+| Tests | The demo reset script did not know new tables (three times, as migrations 003 to 005 added tables). Each time a test failed; it now lists every table |
+| Tests | **Owner-connection queries in the platform module had no explicit `tenant_id`.** The owner role has `BYPASSRLS`, so the tenant setting filtered nothing: user counts and module lists leaked across workspaces, and suspending one workspace would have revoked every workspace's sessions. Fixed; `platform.test.ts` "suspending one workspace never signs anyone out of another" |
+| Tests (intermittent) | A deadlock between a late fire-and-forget audit write and the next test's `TRUNCATE`. Security-event writes are now tracked and flushed (also on shutdown) |
+| Tests | First-use creation of a tenant's encryption key raced under concurrency. Now `ON CONFLICT DO NOTHING` then re-read; tested |
+| Tests | The public-config route captured the environment at start-up instead of per request |
+| ESLint | An early return before hooks in the Overview page (moved to the route) |
+| Smoke test | The single-page-app fallback answered 204 (fixed in round 1) |
 
 ## Migration and database
 
 | Check | Result | Evidence |
 |---|---|---|
-| Migrations added | 3 (`001` platform, `002` ledger, `003` fiscal periods, drafts and approval), plain SQL, each with a down step | `backend/migrations/` |
-| Fresh database | PASS | `tests/global-setup.ts` drops the schema and runs the real `npm run migrate` before every test run |
-| Down and up again | PASS | `migrations.test.ts` rolls back all three migrations (no tables left), re-applies, and compares table lists. A second `migrate` is a no-op |
-| RLS on every tenant table | PASS | `tenancy.test.ts` reads `pg_class`: all 14 tenant tables are `FORCE ROW LEVEL SECURITY`; `tenants` is enabled but not forced, on purpose (provisioning) |
-| App role cannot bypass | PASS | `erpatio_app` is `NOLOGIN`, no `BYPASSRLS`, not superuser (tested). The API drops to it with `SET LOCAL ROLE` in every transaction |
-| Fails closed | PASS | with no tenant context, 6 tables return 0 rows; `WITH CHECK` blocks writing another tenant's row (error 42501) |
-| Cross-tenant references | PASS | composite foreign keys `(tenant_id, id)`; a line pointing at another tenant's account is rejected by the database even for the table owner (23503) |
-| Ledger rules in the database | PASS | unbalanced entry, entry with no lines, line with both sides: all rejected at COMMIT (23514). Update and delete on posted entries and on the audit log are blocked for the app role and the owner |
-| Privileges | PASS | app role has no UPDATE or DELETE on journal tables or the audit log; no INSERT on `users` |
-| Column classification | PASS | `migrations.test.ts` compares `information_schema` with `classification.ts`: 107 columns, all classified; 5 hold personal data |
-| Real Neon | **NOT RUN** | The `GRANT erpatio_app TO CURRENT_USER` and `SET ROLE` path is proven on a Neon-like local role only (F-02) |
-| Indexes | not measured | Reasonable by inspection (tenant + date on entries, tenant + account on lines). No query plans were reviewed |
-| Orphans / shared database | n/a | There is no shared database; nothing was written anywhere but the throwaway cluster |
+| Migrations | 5, plain SQL, each with a working down step | `migrations.test.ts` rolls back all five (no tables left), re-applies, compares |
+| RLS on every tenant table | PASS | `tenancy.test.ts` reads `pg_class`: all 18 tenant tables are `FORCE ROW LEVEL SECURITY` (`tenants` is enabled, not forced, on purpose) |
+| App role cannot bypass | PASS | `erpatio_app` is `NOLOGIN`, no `BYPASSRLS`, not superuser (tested) |
+| Fails closed / WITH CHECK / composite FKs | PASS | tested with direct SQL (`tenancy.test.ts`) |
+| Ledger rules in the database | PASS | balance, immutability, one reversal, closed or missing period: all refused by direct SQL |
+| Audit log append-only | PASS | updates and deletes refused; the **one** exception (clearing `ip` while `app.erasure` is on, nothing else changing) is itself tested to refuse every other change |
+| Column classification | PASS | `migrations.test.ts`: every column classified, none stale; register regenerated |
+| Encrypted at rest in the database | PASS | `users.totp_secret_enc` and `tenant_keys.wrapped_key` hold ciphertext (tested) |
+| Real Neon | **NOT RUN** | role grants and `SET ROLE` proven on a Neon-like local role only (F-02) |
+| Backup and restore | **NOT RUN** | [procedure written](../06-operations/runbook-backup-restore.md); no drill performed (F-09) |
 
 ## Evidence from real use
 
-Run on the final build against a local database; this is not Neon.
+Run against the built app on a local database, over HTTP (this is not Neon):
 
 | Step | Result |
 |---|---|
-| `npm run seed:demo -- --reset` | `demo tenant 'casa-verde-demo' ready with 14 journal entries` |
-| `/health`, `/ready` | `{"status":"ok"}`, `{"status":"ready"}` |
-| Sign in with the demo credentials | 200; role `DemoUser`; 7 permissions |
-| Trial balance | `balanced = true`; debits 1,648,000.0000 = credits 1,648,000.0000; 14 accounts with activity |
-| Refresh with the cookie | 200 |
-| `GET /journal/abc` (single-page app deep link) | 200 `text/html` (it was 204 before the fix above) |
-| `GET /api/v1/nope` | 404 `application/json` |
-| Headers | `Content-Security-Policy` same-origin only, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: SAMEORIGIN` |
-| Real sign-in page, real fonts | Rendered correctly under the strict CSP (screenshot reviewed) |
-
-### Finance workflow over HTTP (2026-11-14, local database)
-Run as three people: the demo visitor, an accountant and a finance manager (the last two exist only on the local test database).
-
-| Step | Result |
-|---|---|
-| Demo visitor reads fiscal periods | 200, 36 periods |
-| Demo visitor closes a period / changes settings | 403 / 403 |
-| Balance sheet (demo) | balanced; assets 1,231,300.00 |
-| Income statement (demo, year to date) | revenue 400,000.00, expenses 416,700.00, net (16,700.00), equal to the Overview's earnings |
-| Manager turns approval on; direct post | 409 `approval_required` |
-| Accountant saves, submits, tries to approve own draft | 201, submitted, 403 |
-| Manager sends it back with a note, accountant resubmits, manager approves | back to draft with the note; posted as JE-15 (8,000.00) |
-| Manager closes August; posting into August | closed; 422 `period_closed` |
-| Reopen without / with a reason | 422 / 200 |
-| Audit log | contains draft.submitted, draft.rejected, draft.posted, period.closed, period.reopened, settings.updated |
+| Sign-up; sign in before confirming the e-mail | 202; refused (`email_not_verified`) |
+| New administrator opens the app without 2FA | blocked (`mfa_enrollment_required`) |
+| Enrol with a computed authenticator code | 200, 8 recovery codes; the app then opens |
+| Next sign-in | asks for a code (`mfa_required`); a code one step ahead completes it |
+| Create a custom role; invite a person | 201; 201, invitation pending |
+| The only administrator deactivates themselves | refused (`not_allowed`) |
+| Export my data | consent on record |
+| Operator lists workspaces; a workspace administrator tries | both workspaces with people counts; 403 |
+| Support session | 201; reads the balance sheet 200; writes 403; the customer's own audit log shows it |
+| Operator switches a module; suspends the workspace | enabled; sign-in then 401 |
+| Finance workflow from round 1 | approval, period close, statements: unchanged and still passing |
 
 ## Acceptance criteria
-
-Status per story. Totals follow the table.
 
 ### EPIC-01 Platform foundation
 | ID | Story | Status | Evidence |
 |---|---|---|---|
-| US-001 | Bootable dev environment | NOT MET (decision) | AC says compose starts db, redis, backend, frontend. Changed by D-1: compose runs the database only; API and web run with npm. `/health` and the UI on :5173 work (smoke test) |
-| US-002 | Repository structure | PASS | `backend/src` + `backend/migrations`; `npm run migrate` and `npm run dev` work |
-| US-003 | Secrets out of the repo | PASS | env-only config, `.env` ignored, `backend/.env.example` lists all variables; local scan clean. CI scan not yet run |
-| US-004 | Config and DB session | PASS | `config/env.ts` (zod; production refuses weak secrets, tested), `db/pool.ts` |
-| US-005 | Migrations pipeline | PASS | node-pg-migrate; up/down/up tested |
-| US-006 | CI pipeline | PARTIAL | `ci.yml` runs lint, types, tests on PostgreSQL, build, audit, gitleaks, CodeQL. **Never run** |
-| US-007 | Logging and probes | PASS | pino JSON with request id and tenant id; `/health` (liveness) and `/ready` (database) |
-| US-008 | Error model and conventions | PASS | one JSON error shape with request id; `/api/v1` versioning; paginated journal list; 422 carries field paths only |
+| US-001 | Bootable dev environment | NOT MET (decision) | AC changed by D-1: compose runs the database only; API and web run with npm |
+| US-002 | Repository structure | PASS | `backend/src`, `backend/migrations`; `npm run migrate`, `npm run dev` |
+| US-003 | Secrets out of the repo | PASS | env-only config; `.env.example`; scans green on PR #1 |
+| US-004 | Config and DB session | PASS | zod config (production refuses weak secrets, tested); `db/pool.ts` |
+| US-005 | Migrations pipeline | PASS | node-pg-migrate; up, down, up tested |
+| US-006 | CI pipeline | PASS | all checks green on PR #1 (run `43557360411`); not yet run on this branch |
+| US-007 | Logging and probes | PASS | JSON logs with request and tenant ids; `/health`, `/ready` |
+| US-008 | Error model and conventions | PASS | one error shape; `/api/v1`; pagination; field paths only |
 
-### EPIC-02 Identity, access, tenancy (M0 part)
+### EPIC-02 Identity, access, tenancy (M0 and M1)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
-| US-010 | Tenant sign-up | NOT MET (decision) | D-3: no public sign-up until e-mail verification exists. Tenants are created by script (`provisionTenant`) |
-| US-011 | Login with JWT | PASS | `auth.test.ts`: token with roles and permissions, HttpOnly + SameSite=Strict cookie, 15-minute access token |
-| US-012 | Password policy and hashing | PARTIAL | argon2id verified in the database (`$argon2id$`). The 12-character policy function exists but nothing sets passwords through the API yet |
-| US-013 | Account lock-out | PASS | 5 failures lock for 15 minutes; even the right password is refused; audited |
-| US-014 | Refresh rotation and logout | PASS | rotation, replay revokes the whole chain, expiry, logout, CSRF header, hashed storage: all tested |
-| US-015 | Password reset by e-mail | NOT MET | not built |
-| US-018 | RBAC guard | PASS | `requirePermission()`; Viewer gets 403 on post, edit, audit (`ledger.test.ts`) |
-| US-019 | Row-Level Security | PASS | see Migration and database; cross-tenant leak tests answer 404 on every id-bearing endpoint |
-| US-020 | Audit log | PASS | login, lock-out, token reuse, logout, account and journal changes written; append-only by trigger; no e-mail addresses in rows (tested) |
-| US-023 | Two-factor (TOTP) | NOT MET | not built |
+| US-010 | Tenant sign-up | PASS | `account.test.ts`: workspace, administrator, 36 periods, 16 accounts, consent, confirmation e-mail; off unless `SIGNUP_ENABLED`. Real e-mail untested (F-30) |
+| US-011 | Login with JWT | PASS | `auth.test.ts` |
+| US-012 | Password policy and hashing | PASS | argon2id; 12-character policy enforced at sign-up, reset and via invitation |
+| US-013 | Account lock-out | PASS | 5 failures lock 15 minutes, audited; the shared demo account is exempt (F-05 fixed) |
+| US-014 | Refresh rotation and logout | PASS | rotation, replay revokes the chain, 10-second grace for two tabs (F-03 fixed) |
+| US-015 | Password reset by e-mail | PASS | identical answers for known and unknown accounts; one-time, 30-minute link; ends every session; a newer link replaces an older one |
+| US-016 | Manage people | PASS | invite by e-mail, deactivate and reactivate (sessions end), rename, resend; records kept; `admin.test.ts` |
+| US-017 | Assign roles | PASS | several roles per person, permissions are the union; cannot grant what you do not hold; last administrator protected |
+| US-018 | RBAC guard | PASS | `requirePermission()` on every route |
+| US-019 | Row-Level Security | PASS | see Migration and database |
+| US-020 | Audit log | PASS | sign-in, lock-out, token reuse, drafts, postings, periods, settings, roles, people, privacy, platform, **permission denials** |
+| US-021 | Module subscription flags | PASS | per-workspace flags in the token; a disabled module answers 403 `module_disabled`, core administration keeps working |
+| US-022 | Platform admin console (API) | PASS | list, suspend, switch modules, read-only 15-minute support session with a mandatory reason, written to the customer's own audit log; UI page included |
+| US-023 | Two-factor (TOTP) | PASS | RFC 6238 vectors; enrolment, 8 hashed single-use recovery codes, replay refused, mandatory per role, QR code |
+| US-024 | Custom roles | PASS | create, edit, delete when unused; built-in roles fixed; unknown or platform permissions refused |
 
 ### EPIC-06 Security and data privacy
 | ID | Story | Status | Evidence |
 |---|---|---|---|
-| US-100 | Threat model review | NOT MET | the model was updated for the new stack; no security reviewer has signed off |
-| US-101 | Transport security and headers | PARTIAL | helmet, strict CSP and the CORS allow-list are tested locally. HSTS is configured for production but **no test asserts it**. TLS is Render's and is unverified until deploy |
-| US-102 | Rate limiting | PARTIAL | per-IP on login and refresh (429 with `Retry-After`, tested); per-account lock-out in Postgres. Not per tenant; in-process, one instance only (F-05, F-15) |
-| US-103 | Validation and query standards | PASS | zod on every body, query and param; SQL parameterised, template-string SQL is an ESLint error; oversized body 413; injection strings tested |
-| US-104 | Secret scanning gate | PARTIAL | gitleaks job written; not run |
-| US-105 | SAST and dependency scanning | PARTIAL | CodeQL and `npm audit` jobs written, not run. Local `npm audit`: 0 and 3 moderate |
-| US-106 | Container hardening | NOT MET (decision) | D-2: native Node service on Render, no containers |
-| US-107 | Encryption at rest, encrypted backups | PARTIAL | provided by Neon by design; not verified. Restore drill not done (F-09) |
-| US-108 | Key management and rotation | NOT MET | JWT key rotation is implemented (`kid`, `JWT_SECRET_PREVIOUS`) but **has no test**, and there is no KMS or rotation drill. No application encryption key exists |
-| US-109 | Security event logging and alerts | PARTIAL | events go to the audit log; no alerting; permission-denied is not recorded (F-17) |
-| US-110 | Data classification and register | PASS | `classification.ts` checked against the live schema; register generated at `03-architecture/data-classification-register.md` |
-| US-111 | Field-level encryption | NOT MET | not built; no sensitive-personal data exists yet |
-| US-112 | PII masking in logs | PASS | test: e-mails, bearer tokens, JWTs and `password` fields never reach log output |
-| US-113 | Privacy notice and consent | NOT MET | not built |
-| US-114 | Data-subject export | NOT MET | not built |
-| US-115 | Erasure / anonymisation | NOT MET | not built |
-| US-116 | Retention engine | NOT MET | not built |
-| US-117 | Sensitive-field read audit | NOT MET | not built (depends on US-111) |
-| US-118 | Breach runbook | NOT MET | not written |
-| US-119 | Synthetic data in non-production | PASS | the only seed is the synthetic demo; tests use `@*.test` addresses |
-| US-120 | E-mail verification | NOT MET | the verified flag is enforced at login (403 tested) but no flow sets it |
-| US-121 | Breached-password check | NOT MET | not built |
-| US-122 | Session list, sign out everywhere | NOT MET | not built (logout revokes the current session family only) |
-| US-123 | No user enumeration | PASS | unknown user, wrong password and unknown workspace return identical bodies; equalised timing via a dummy hash (tested) |
-| US-124 | Default-deny routes | PASS | `unguardedRoutes()` walks the real router at boot and in tests; the checker is itself tested; every protected route answers 401 without a token; the public allow-list is asserted exactly |
-| US-125 | Sub-processor register | PARTIAL | written for Neon, Render, GitHub; regions are "planned" until the projects exist |
+| US-100 | Threat model review | PARTIAL | every threat has a mitigation and status; **no security reviewer has signed off** |
+| US-101 | Transport security and headers | PARTIAL | helmet, strict CSP, CORS allow-list tested; HSTS configured but untested; TLS is Render's, unverified |
+| US-102 | Rate limiting | PARTIAL | per-IP on every public auth route; per-account lock-out in Postgres; not per tenant; in-process (F-15) |
+| US-103 | Validation and query standards | PASS | zod everywhere; parameterised SQL (lint-enforced); 413, 400, injection tested |
+| US-104 | Secret scanning gate | PASS | gitleaks and GitGuardian green on PR #1; branch protection making them *required* is not configured |
+| US-105 | SAST and dependency scanning | PASS | CodeQL and `npm audit` green on PR #1; it found a real prototype issue, fixed |
+| US-106 | Container hardening | NOT MET (decision) | D-2: native Node service, no containers |
+| US-107 | Encryption at rest, encrypted backups | PARTIAL | provided by Neon, unverified; restore drill not run (F-09) |
+| US-108 | Key management and rotation | PARTIAL | master key outside the database, per-tenant wrapped keys, re-wrap script, JWT `kid` rotation; rotation tested for the master key; no KMS; no rotation drill; JWT rotation untested (F-22) |
+| US-109 | Security event logging and alerts | PARTIAL | denials audited; a burst of 10 in 5 minutes logs a `security_alert` line; nothing pages anyone |
+| US-110 | Data classification and register | PASS | checked against the live schema; register regenerated |
+| US-111 | Field-level encryption | PARTIAL | mechanism built and proven (TOTP secrets are ciphertext; rotation, tamper, cross-tenant tested); no employee or bank fields exist yet to encrypt (M5) |
+| US-112 | PII masking in logs | PASS | tested |
+| US-113 | Privacy notice and consent | PARTIAL | notice page and consent record with version and time at sign-up; employee-data consent arrives with HR (M5) |
+| US-114 | Data-subject access export | PASS | admin export of any person, self-export for everyone; audited; tested |
+| US-115 | Erasure preserving the ledger | PASS | person pseudonymised, sessions and addresses cleared, **trial balance and entries byte-identical before and after** (tested) |
+| US-116 | Retention policy engine | PARTIAL | dry-run report then delete for expired sign-in tokens and e-mail links; other data classes have no policy yet |
+| US-117 | Sensitive-field read audit | NOT MET | no readable sensitive-personal fields exist yet (M5); exports are audited |
+| US-118 | Breach response runbook | PARTIAL | [written](../06-operations/runbook-breach-response.md); **tabletop not held** |
+| US-119 | Synthetic data in non-production | PASS | |
+| US-120 | E-mail verification | PASS | gate enforced, link flow built, resend |
+| US-121 | Breached-password check | PASS | k-anonymity range lookup, fails open; tested with an injected checker; live call not exercised |
+| US-122 | Session list and sign out everywhere | PASS | list, revoke one, revoke all; cannot touch another person's |
+| US-123 | No user enumeration | PASS | |
+| US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
+| US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
-### EPIC-03 General ledger (the slice built ahead of M2)
+### EPIC-03 General ledger (built ahead of M2)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
-| US-030 | Chart of accounts | PARTIAL | create, rename, deactivate; duplicate code returns 409. Flat list: no hierarchy or roll-ups |
-| US-031 | Starter template | PASS | 16-account trading chart applied when a tenant is provisioned |
-| US-032 | Draft journal entry | PASS | Drafts may be empty or unbalanced; only the author edits or deletes; posting checks balance; `drafts.test.ts` |
-| US-033 | Balanced-entry enforcement | PARTIAL | unbalanced is rejected in the browser, the service (422) and the database (23514); nothing saved. The API message does not state the difference, which the AC asks for |
-| US-034 | Post and immutability | PASS | posted entries cannot be updated or deleted by anyone (tested as app role and as owner). No edit or delete endpoint exists |
-| US-035 | Reversal entry | PASS | swaps debits and credits in one transaction; once only, even under 5 concurrent attempts; a reversal cannot be reversed |
-| US-036 | Fiscal periods | PASS | calendar months per fiscal year; closed or missing period refused in the service and by a database trigger (tested by direct SQL); `periods.test.ts` |
-| US-037 | Period close and lock | PASS | unposted drafts block the close; already-closed and already-open refused; reopening needs a reason; both audited. The full close checklist is not built |
-| US-038 | Approval workflow | PASS | per-workspace setting; submit, send back with a note, approve and post; the approver cannot be the author (403 `self_approval`); single level; `drafts.test.ts` |
-| US-039 | Trial balance | PASS | ties to the ledger; honours the as-of date; decimals exact (0.1 + 0.2 = 0.3 tested) |
-| US-040 | Income statement and balance sheet | PARTIAL | both computed from the ledger, date-filtered, exact decimals, balanced, tenant-isolated; CSV export. **Missing:** PDF export, comparative periods, year-end closing (earnings are cumulative) |
-| US-046 | Gapless numbering | PASS | row lock on a per-tenant counter; 20 concurrent postings give 1 to 20 with no gaps. Covers the journal only |
+| US-030 | Chart of accounts | PARTIAL | flat list; no hierarchy or roll-ups |
+| US-031 | Starter template | PASS | 16 accounts at provisioning and sign-up |
+| US-032 | Draft journal entry | PASS | `drafts.test.ts` |
+| US-033 | Balanced-entry enforcement | PARTIAL | browser, service and trigger; the API message does not state the difference |
+| US-034 | Post and immutability | PASS | |
+| US-035 | Reversal entry | PASS | once only, even under concurrency |
+| US-036 | Fiscal periods | PASS | |
+| US-037 | Period close and lock | PASS | |
+| US-038 | Approval workflow | PASS | |
+| US-039 | Trial balance | PASS | |
+| US-040 | Income statement and balance sheet | PARTIAL | no PDF, no comparatives, no year-end close (earnings cumulative) |
+| US-046 | Gapless numbering | PASS | journal only |
 
-Stories of EPIC-03 not listed (US-041 to 045, 047) are out of scope for this audit: not started.
+Not started: EPIC-03 US-041 to 045 and 047 (bills, invoices, aging, currency, VAT, posting-rule engine); all of EPIC-04 (supply chain), EPIC-05 (production, HR, BI) and US-095 to 099 (import, export, API keys, webhooks, billing).
 
 ### Totals
-56 criteria audited: **27 PASS · 12 PARTIAL · 14 NOT MET · 3 NOT MET (decision)** (27 + 12 + 14 + 3 = 56).
+61 criteria audited: **44 PASS · 14 PARTIAL · 1 NOT MET · 2 NOT MET (decision)** (44 + 14 + 1 + 2 = 61).
 
 ### M0 gate (from the roadmap)
 | Gate item | Status |
 |---|---|
-| Threat model reviewed, each threat has a mitigation story | NOT MET |
-| Sign-up, verification, login, refresh, lock-out, reset, 2FA end to end | NOT MET (login, refresh, lock-out only) |
+| Threat model reviewed, every threat has a mitigation story | PARTIAL (mitigated; reviewer sign-off missing) |
+| Sign-up, verification, login, refresh, lock-out, reset, 2FA end to end | PASS (tests and HTTP; real mail untested) |
 | Default-deny test | PASS |
 | Cross-tenant leak test on all endpoints | PASS |
-| Secret, SAST, dependency, image scans required and green in CI | NOT MET (never ran) |
-| DB encrypted at rest; restore drill succeeded | NOT MET |
-| PII register generated; sensitive fields encrypted; logs free of PII | PARTIAL (register and masking done; no encryption yet) |
-| Data-subject export and erasure demonstrated | NOT MET |
-| Breach runbook walked through | NOT MET |
-| Gaps G-01, G-02, G-15, G-21, G-22 answered | PARTIAL (G-01, G-02 decided; G-15, G-21 open; G-22 partly) |
+| Secret, SAST, dependency scans in CI and green | PASS on PR #1 (not configured as *required* checks) |
+| DB encrypted at rest; restore drill succeeded | **NOT MET** (drill not run) |
+| PII register generated; sensitive fields encrypted; logs free of PII | PASS for the data that exists |
+| Data-subject export and erasure demonstrated on synthetic data | PASS |
+| Breach runbook walked through | **NOT MET** (written, tabletop not held) |
+| Gaps G-01, G-02, G-15, G-21, G-22 answered | PARTIAL (G-15 and G-21 open, G-22 partly) |
 
-**The M0 gate does not pass.**
+**The M0 gate does not pass yet.** What is left is procedure and people, not code.
 
 ## Tests run (full inventory)
 
-### Backend unit and integration tests: 103, all against real PostgreSQL
+### Backend: 180 tests, all against real PostgreSQL
 | File | Tests | What it checks |
 |---|---|---|
-| `auth.test.ts` | 12 | login cookie flags and shape; identical failure for unknown user, wrong password, unknown workspace; lock-out after 5 and blocked afterwards; unverified e-mail; deactivated user; only hashes stored (argon2id, SHA-256); forged, tampered and `alg=none` tokens; refresh rotation and replay revoking the family; CSRF header; logout; expired refresh |
-| `tenancy.test.ts` | 8 | tenant A asking for tenant B's entry, reversal, account: 404 and nothing changed; list endpoints show own rows only; cannot post against B's account; session sees only its tenant; no context returns nothing; `WITH CHECK`; composite foreign keys; role is not bypass or superuser; all 14 tenant tables force RLS |
-| `ledger.test.ts` | 21 | gapless numbering; unbalanced; exact decimals; 4 bad-amount forms (negative, 5 decimals, exponent, text); both/neither side, single line, inactive account; 20 concurrent postings; direct-SQL unbalanced, empty, two-sided lines; update/delete blocked for app role and owner; audit log append-only; reversal once, reversal of a reversal, 5 concurrent reversals; trial balance ties and as-of; audit written without personal data; duplicate code 409; Viewer and audit permissions |
-| `security.test.ts` | 16 | every route has a guard (and the checker catches an unguarded one); every protected route 401 without a token; exact public allow-list; security headers; malicious request id; one error shape, no echoed values; malformed JSON 400, unknown route JSON 404, oversized body 413; no CORS for unknown origins; SQL-metacharacter input including LIKE wildcards; 429 with `Retry-After`; PII masking in logs; production boot refuses weak secret, insecure cookie, wildcard CORS; OpenAPI document; money helpers |
-| `demo.test.ts` | 4 | seed gives a balanced 14-entry ledger and the published credentials work; idempotent; `--reset` restores state and triggers are back; the 100-entry cap; refuses to reset a non-demo tenant with the demo slug |
-| `migrations.test.ts` | 4 | full down and up; idempotent; every column classified; personal columns tagged |
-| `static.test.ts` | 3 | app shell at `/` and on deep links; unknown API path is JSON 404; strict CSP |
-| `periods.test.ts` | 10 | 36 periods for a new tenant; only a manager adds a year, once; leap-year February; no period for a date; close blocks posting; the database refuses an entry in a closed period (direct SQL); reversals still work; unposted drafts block closing; close and reopen guards, reason, audit; cross-tenant close is 404 |
-| `drafts.test.ts` | 17 | empty and unbalanced drafts allowed; author-only edit and delete; foreign account refused; posting a draft writes the ledger entry and records who posted; unbalanced or closed-period draft stays; non-author cannot post; approval on: direct post 409, only a manager changes the policy, full submit-approve flow with creator and approver recorded, nobody approves their own entry, send back with a note, unbalanced cannot be submitted, reversals not held, audit trail; the demo draft cap |
-| `statements.test.ts` | 8 | income statement totals, ranges, defaults, bad dates, reversal; balance sheet balances with earnings, is as-of, empty and viewer cases, tenant isolation |
+| `auth.test.ts` | 12 | sign-in shape and cookie flags; identical failures; lock-out; unverified; deactivated; hashed storage; forged and `alg=none` tokens; rotation, replay, CSRF header, logout, expiry |
+| `account.test.ts` | 17 | slug generation; sign-up creates everything, consent, hashed token; unconfirmed cannot sign in, link works once; expired or invented tokens; weak, breached, consent-less sign-up creates nothing; duplicate company names; closed unless enabled; new administrator gated to 2FA; resend; password reset (identical answers, one use, ends sessions, newer link wins, unlocks, never for the demo); the demo account is never locked |
+| `mfa.test.ts` | 17 | RFC 6238 vectors, drift, replay; enrolment, encrypted secret, recovery codes; step token and code; replay refused; step token cannot act as access token; wrong codes lock; recovery codes once; disable needs password and code; mandatory roles gated and cannot disable; sessions list, revoke, revoke all, cross-person; concurrent refresh grace; permission denials audited without the body |
+| `privacy.test.ts` | 14 | encryption round-trip, nonce, cross-tenant and tamper, concurrent first key, blind index, master-key rotation; export (content, audit, self vs others, cross-tenant); erasure keeps ledger and totals identical, clears addresses, audit log stays append-only, guards (self, twice, last administrator, demo); retention dry run and apply |
+| `admin.test.ts` | 18 | invite and accept; duplicates, bad roles, permissions; resend; cross-workspace 404; demo locked; role replacement and union; no privilege escalation; last administrator; deactivation ends sessions; rename; custom roles (list, create effective at next sign-in, refusals, escalation, system roles fixed, in-use delete, audit); module visibility and 403 `module_disabled` |
+| `platform.test.ts` | 11 | only the operator; permission alone is not enough; listing; suspend and reactivate; **no cross-workspace session loss**; protected targets; module switching; support sessions (reason, audit, read-only, no refresh, suspended) |
+| `ledger.test.ts` | 21 | posting, decimals, bad amounts, concurrency, direct-SQL rules, reversal, trial balance, audit, roles |
+| `tenancy.test.ts` | 8 | cross-tenant 404s, RLS, fail-closed, WITH CHECK, composite FKs, role flags, all 18 tables forced |
+| `security.test.ts` | 16 | default-deny, 401 without a token for every protected route, exact public list, headers, error hygiene, rate limit, PII masking, production config guards, OpenAPI, money |
+| `periods.test.ts` | 10 | periods, leap February, close and lock (service and trigger), reversal still works, drafts block close, reopen with reason, cross-tenant |
+| `drafts.test.ts` | 17 | drafts, posting, approval workflow, send-back, self-approval refused, demo cap |
+| `statements.test.ts` | 8 | income statement and balance sheet |
+| `demo.test.ts` | 4 | seed, idempotent reset, cap, refuses a non-demo tenant |
+| `migrations.test.ts` | 4 | full down and up, idempotent, classification |
+| `static.test.ts` | 3 | app shell and deep links, JSON 404, strict CSP |
 
-### Frontend: 6 tests (money parsing, round-trip, peso and ledger formatting; CSV quoting and formula neutralisation)
+### Frontend: 6 tests (money parsing and formatting; CSV quoting and formula neutralisation)
 
 ### Other checks
 | Check | Result |
 |---|---|
-| Break-it check (break the code on purpose, expect failures) | **NOT RUN** (F-12) |
-| End-to-end smoke test of the built app | passed, see "Evidence from real use" |
-| Visual review | prototype and real sign-in page by screenshot, desktop 1280 px and phone layout at 500 px; the prototype is not the shipped UI |
-| Contrast | computed for every text pair: 5.40 to 14.24, all above 4.5 |
-| Manual checks by the owner | none yet |
+| Break-it check | **NOT RUN** (F-12) |
+| HTTP workflow (sign-up through support session) | passed, see Evidence |
+| Visual review | earlier rounds only (prototype, sign-in, header alignment) |
 | Load, performance | NOT RUN |
 
 ### Where the test data lived and what was cleaned up
-- Throwaway PostgreSQL cluster in the session scratchpad (`…\scratchpad\pg\data`, port 5544), holding only synthetic rows. It was stopped by the system under memory pressure and has not been restarted. It can be deleted.
-- My local smoke-test server was stopped by process id. Headless-browser profiles, temporary files and the cookie jar holding a demo refresh token were deleted. Screenshots remain in the scratchpad, outside the repository.
-- The shared database: none exists. Nothing was written to Neon, Render or any hosted service.
-- In the repo: `git grep` shows the demo credentials only in `README.md`, the runbook, this report, the seed script, the sign-in page and the prototype (all intended). Test data and passwords live in `backend/tests/` only.
+- Throwaway PostgreSQL cluster in the session scratchpad (port 5544), synthetic rows only. It is still running for local viewing and can be deleted.
+- Local-only logins (`*@erpatio.local`) exist only in that database. The helper script that created them was deleted and never committed; `git grep` confirms none of those credentials are in the repository.
+- My local server runs on port 8123 until stopped. Browser profiles and temporary files were removed.
+- Nothing was written to Neon, Render or any hosted service.
 
 ## Definition of Done (doc 20)
 | Item | Status |
 |---|---|
-| Code reviewed via PR; CI green | NOT MET (no push, no PR, CI never ran) |
-| Unit tests for rules; integration test for DB flows | PASS (68 tests on real PostgreSQL) |
+| Code reviewed via PR; CI green | PARTIAL: PR #1 was green; this branch has not been through a PR yet |
+| Unit tests for rules; integration test for DB flows | PASS (180 tests on real PostgreSQL) |
 | Tenant isolation verified (leak test) | PASS |
 | Reversible migration | PASS |
 | Permission declared on every endpoint | PASS |
-| Money never float | PASS (decimal strings, `bigint`, `NUMERIC(19,4)`) |
+| Money never float | PASS |
 | Audit log for state-changing actions | PASS |
-| OpenAPI docs updated | PARTIAL (generated; request bodies only, no response schemas) |
-| No secrets in diff | PASS locally; scanner in CI not yet run |
-| Docs and ADRs updated; traceability row updated | PARTIAL (docs and ADRs done; the traceability matrix was not updated for the new stories) |
+| OpenAPI docs updated | PARTIAL (generated; request bodies only) |
+| No secrets in diff | PASS |
+| Docs and ADRs updated; traceability row updated | PARTIAL (docs and ADRs done; the traceability matrix was not updated for new stories) |
 | Demo'd to the PO and accepted | NOT MET |
 
 ## Decisions that change the ticket
 | ID | Decision | Effect |
 |---|---|---|
-| D-1 | Express + React + TypeScript on PostgreSQL ([ADR-006](../03-architecture/adr/ADR-006-technology-stack.md)) | US-001, 002, 004, 005, 006 reworded; NFR-06, 09, 17 amended; closes G-02 |
-| D-2 | One Render web service, no containers ([ADR-007](../03-architecture/adr/ADR-007-hosting-render-neon.md)) | US-106 not applicable; no CORS in production; closes G-06 |
-| D-3 | No public sign-up until e-mail verification exists | US-010 deferred; tenants provisioned by script |
-| D-4 | No Redis in v1 | US-102 limiter is per-IP in process; accounts lock in Postgres |
-| D-5 | Public demo credentials ([ADR-008](../03-architecture/adr/ADR-008-public-demo-workspace.md)) | deliberate exception to "no shared credentials" |
-| D-6 | Drafts live in their own tables; periods and approval added ([ADR-009](../03-architecture/adr/ADR-009-drafts-periods-and-approval.md)) | US-032, 036, 037, 038 built; the ledger stays append-only |
-| D-7 | UI identity: "the ledger" ([design system](../03-architecture/design/ui-design-system.md)) | replaces the first generic design |
-| D-8 | ADR-001 to 005 marked **Accepted** on 2026-11-13 on the product owner's instruction to approve | the PO should confirm in writing |
+| D-1 | Express + React + TypeScript on PostgreSQL ([ADR-006](../03-architecture/adr/ADR-006-technology-stack.md)) | US-001, 002, 004, 005, 006 reworded |
+| D-2 | One Render web service, no containers ([ADR-007](../03-architecture/adr/ADR-007-hosting-render-neon.md)) | US-106 not applicable |
+| D-3 | Sign-up is off by default and needs a mail provider | production refuses `SIGNUP_ENABLED` without `SMTP_URL` |
+| D-4 | No Redis in v1 | per-IP limiter is in-process; accounts lock in Postgres |
+| D-5 | Public demo credentials ([ADR-008](../03-architecture/adr/ADR-008-public-demo-workspace.md)) | the demo is exempt from lock-out and cannot change passwords, 2FA, people or roles |
+| D-6 | Drafts, periods, approval ([ADR-009](../03-architecture/adr/ADR-009-drafts-periods-and-approval.md)) | US-032, 036, 037, 038 built |
+| D-7 | UI identity "the ledger" | see the design system |
+| D-8 | ADR-001 to 005 accepted on the product owner's instruction | the PO should confirm in writing |
+| D-9 | **Platform operator uses the owner connection** ([ADR-010](../03-architecture/adr/ADR-010-platform-operator.md)) | every query in that module must filter by `tenant_id` itself; support sessions are read-only |
+| D-10 | Mandatory 2FA is a per-workspace list of roles | on for the administrator role of every workspace created by sign-up, and for the operator role; off for seeded and demo workspaces |
 
 ## Findings
 | ID | Finding | Severity | Suggested action |
 |---|---|---|---|
-| F-01 | Not deployed; no live link; nothing verified on Render or Neon | High | Follow the runbook; fill the live-demo table |
-| F-02 | RLS role setup (`GRANT … TO CURRENT_USER`, `SET LOCAL ROLE`) proven on a Neon-like local role only. CI runs as a superuser, which is weaker than local | High | Run migrations and the isolation tests against a Neon branch before publishing |
-| F-03 | Two tabs refreshing in the same instant trip reuse detection and sign the person out | Medium | Accept the previous token for a few seconds after rotation |
-| F-04 | The nightly reset needs the Neon direct (owner) string as a GitHub secret | Medium | Use a dedicated Neon role limited to the demo tenant; restrict the workflow to `main` |
-| F-05 | Anyone can lock the shared demo account for 15 minutes (5 wrong passwords) | High (demo) | Do not lock accounts in `is_demo` tenants; rate-limit by IP only |
-| F-06 | Sign-up, e-mail verification, password reset, 2FA, sessions list not built | High (for real use) | Finish M0 before any real tenant |
-| F-07 | No field encryption, export, erasure, retention, consent, breach runbook | High (for real use) | M0 gate items; required before payroll data (M5) |
-| F-08 | CI never ran; actions pinned to major tags, not commit SHAs | Medium | Open a PR, fix what fails, pin by SHA |
-| F-09 | Backup retention unknown; restore drill not done | Medium | Check the Neon plan; run a drill into a branch |
-| F-10 | 3 moderate advisories in `node-pg-migrate` (`glob`, `minimatch`); reachable only with our own migrations folder, below the CI gate; the offered fix is a breaking downgrade | Low | Accept; watch for a patched release |
-| F-11 | No browser or end-to-end tests; the React pages have no tests | Medium | Add Playwright for sign-in, post, reverse, role gating |
-| F-12 | Break-it check not run: test strength unproven | Medium | Run it next; fix any test that misses a break |
-| F-13 | Permissions live in the access token: role changes take up to 15 minutes (ADR-004) | Low | Accepted |
-| F-14 | Renaming or deactivating an account is last-write-wins | Low | Add a version check when more editing arrives |
-| F-15 | Client IP comes from `X-Forwarded-For` with `TRUST_PROXY=1`; correct only behind Render's single proxy | Low | Re-check if the hosting changes |
-| F-16 | Journal page, filter and trial-balance date are not in the URL; a refresh resets them | Low | Move paging and dates into the query string |
-| F-17 | Permission-denied events are not written to the audit log (FR-SEC-11) | Medium | Record 403s with user and route, never the body |
-| F-18 | The repo is public with no licence (G-15) | Medium | Choose a licence or make the repo private |
-| F-19 | ~~Entry dates are unrestricted~~ **Resolved 2026-11-14:** fiscal periods lock closed months (service and database trigger) | n/a | none |
-| F-20 | No test asserts that no response contains `password_hash`; the claim rests on code reading (no endpoint selects it) | Low | Add a test that walks every response |
-| F-22 | JWT key rotation and the HSTS header have no automated test | Low | Add one test each |
-| F-23 | Motion, the asset bar and the mobile-first stylesheet were added after the audited commit (push `6a1b899`). They were checked by screenshot with motion forced off, and by type-check, lint and build. Animations themselves were not watched at full motion, and the new finance screens (periods, drafts, approval, statements, settings) were not reviewed visually: they were checked by type-check, lint, build and the HTTP workflow above | Low | Review in a real browser once the stack runs; add Playwright (F-11) |
-| F-21 | The HTML prototype loads fonts from Google Fonts; the shipped app self-hosts them | Low | Fine for a design file; do not ship the prototype as the product |
-
-| F-24 | The public demo cannot show approval or period closing (the demo role has no such rights, by design); both are proven by tests only | Low | Optionally add a guided read-only tour |
-| F-25 | No year-end closing, retained-earnings roll-forward, comparative periods or PDF export; balance sheet earnings are cumulative (US-040 partial) | Medium | Build year-end close next |
-| F-26 | Approval is single-level and per workspace; any manager other than the author can approve | Low | Revisit with custom roles (M1) |
-| F-27 | A draft can be saved with a date in a closed period; the block happens at submit and post | Low | Warn in the editor when the date is in a closed period |
+| F-01 | Not deployed; no live link; nothing verified on Render or Neon | High | Follow the runbook |
+| F-02 | RLS role setup proven on a Neon-like local role only; CI runs as a superuser | High | Run migrations and isolation tests against a Neon branch |
+| F-03 | ~~Two tabs refreshing together sign the person out~~ **Resolved:** 10-second grace window, tested | n/a | none |
+| F-04 | The nightly reset needs the Neon owner string as a GitHub secret | Medium | Use a dedicated Neon role limited to the demo tenant |
+| F-05 | ~~Anyone can lock the shared demo account~~ **Resolved:** demo tenants are exempt from lock-out; tested | n/a | none |
+| F-06 | ~~Sign-up, verification, reset, 2FA, sessions not built~~ **Resolved** except real mail delivery (F-30) | n/a | none |
+| F-07 | Field encryption, export, erasure, retention, consent built; **no sensitive-personal data exists yet to encrypt, and the breach tabletop and legal review are not done** | Medium | M5 uses the mechanism; hold the tabletop; get legal review (G-21) |
+| F-08 | ~~CI never ran~~ **Resolved:** green on PR #1. Actions are pinned to major tags, not commit SHAs; the checks are not set as *required* in branch protection | Low | Pin by SHA; require the checks |
+| F-09 | Backup retention unknown; restore drill not done | Medium | Check the Neon plan; run the drill |
+| F-10 | 3 moderate advisories in `node-pg-migrate` (dev-time, behind the CI gate) | Low | Accept; watch for a fix |
+| F-11 | No browser or end-to-end tests; the React pages have no tests | Medium | Add Playwright |
+| F-12 | Break-it check not run: test strength unproven | Medium | Run it next |
+| F-13 | Permissions live in the access token: role, deactivation and suspension reach an open session within 15 minutes (refresh is refused immediately) | Low | Accepted (ADR-004) |
+| F-14 | Renaming or deactivating an account is last-write-wins | Low | Version check when editing grows |
+| F-15 | Client IP comes from `X-Forwarded-For` with `TRUST_PROXY=1`; the limiter is per-process | Low | Revisit if hosting changes or scales out |
+| F-16 | Journal tab and filters: the tab is in the URL, paging and dates are not | Low | Move paging and dates into the query string |
+| F-17 | ~~Permission denials not audited~~ **Resolved** | n/a | none |
+| F-18 | The repo is public with no licence (G-15) | Medium | Choose one |
+| F-19 | ~~Entry dates unrestricted~~ **Resolved** (fiscal periods) | n/a | none |
+| F-20 | No test asserts that no response contains `password_hash` | Low | Add a test that walks every response |
+| F-21 | The HTML prototype loads fonts from Google Fonts and shows only the first 8 screens | Low | Fine for a design file; refresh it before showing it as current |
+| F-22 | JWT key rotation and HSTS have no automated test | Low | Add one test each |
+| F-23 | Motion, new screens and the mobile-first stylesheet were reviewed by type-check, lint, build and screenshots only; animations not watched at full motion | Low | Review in a browser; add Playwright |
+| F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
+| F-25 | No year-end closing, retained-earnings roll-forward, comparatives or PDF export | Medium | Build next in M2 |
+| F-26 | Approval is single-level and per workspace | Low | Revisit if a customer needs more |
+| F-27 | A draft can be saved with a date in a closed period; blocked at submit and post | Low | Warn in the editor |
+| F-28 | A deactivated person's open access token works for up to 15 minutes | Low | Accepted; shorten or add a per-request check if required |
+| F-29 | **The owner connection ignores RLS (`BYPASSRLS`)**: every query in the platform module must carry its own `tenant_id`. A real leak was found and fixed here | Medium | Keep that module small; add a lint rule or a test that scans it for unfiltered queries |
+| F-30 | No real SMTP provider has been used; the Have I Been Pwned call has never been made live | Medium | Configure a provider, send real mail, and make one live range call before opening sign-up |
+| F-31 | Mandatory 2FA is off for seeded workspaces and the demo; the platform operator script turns it on | Low | Decide whether existing administrators must enrol |
+| F-32 | A support session ends on reload (it has no refresh token) | Low | By design |
+| F-33 | Invitation and reset links go to `APP_URL`; a wrong value sends people to a dead page | Low | Set `APP_URL` in Render |
+| F-34 | No branch protection or required reviews on `main` | Medium | Enable in repository settings |
 
 ## Gaps to ask the product owner
-1. **Licence or private?** The repo is public today. Options: an open licence (MIT or Apache-2.0), a source-available licence, or make the repo private until the demo is ready. (G-15, G-16)
-2. **Demo write access.** Visitors can post and reverse entries, bounded by the cap and the nightly reset. Options: keep, or make the demo read-only and rely on the seeded data. Recommendation: keep it writable, fix F-05.
-3. **Neon region and plan.** Singapore is proposed. A paid plan buys a longer restore window; the free plan is enough for the demo. (G-11, NFR-06)
-4. **Who signs off the threat model** (US-100): the product owner, or an outside reviewer?
+1. **Licence.** PolyForm Noncommercial was recommended (portfolio now, commercial rights kept). Not yet applied. (G-15)
+2. **Mail provider.** Which SMTP service (for example Brevo, Resend, SES)? Needed before sign-up, invitations and password reset can work in production.
+3. **Legal review.** The privacy notice and retention periods need a lawyer's eye (Philippine Data Privacy Act). (G-21)
+4. **Who signs off the threat model and attends the breach tabletop?** (US-100, US-118)
+5. **Next scope.** Finish finance (M2 remainder), or open sign-up and deploy first so there is a live link?
 
 ## Release steps still open
-1. Commit on the feature branch, push, open a pull request.
-2. Make CI green; add `NEON_DIRECT_URL` as a repository secret.
-3. Fix F-05, then F-03.
-4. Create the Neon project (Singapore) and the Render Blueprint; seed the demo; run runbook step 6.
-5. Paste the live URL into the runbook, the README and the table at the top of this report.
-6. Run the break-it check; add the end-to-end tests (F-11, F-12).
-7. Merge into `main` only after review.
+1. Squash to one commit, push once, open a pull request; let CI run on it.
+2. Enable branch protection and make the scans required (F-34, F-08).
+3. Create the Neon project and the Render service; set `MASTER_KEY`, `SMTP_URL`, `APP_URL`; seed the demo; create the platform administrator; run runbook step 7.
+4. Run the restore drill and the breach tabletop; get the threat-model sign-off.
+5. Run the break-it check; add the browser tests (F-11, F-12).
+6. Then M2 remainder and M3 onward.

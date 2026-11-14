@@ -100,7 +100,7 @@ describe('row-level security enforced by the database itself', () => {
     expect(r.rows[0]).toEqual({ rolbypassrls: false, rolsuper: false, rolcanlogin: false });
     const forced = await owner.query("SELECT relname FROM pg_class WHERE relforcerowsecurity AND relnamespace = 'public'::regnamespace");
     expect(forced.rows.map((x) => x.relname).sort()).toEqual(
-      ['accounts', 'audit_log', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'refresh_tokens', 'role_permissions', 'roles', 'tenant_counters', 'tenant_settings', 'user_roles', 'users'].sort(),
+      ['accounts', 'audit_log', 'consents', 'email_tokens', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'refresh_tokens', 'role_permissions', 'roles', 'tenant_counters', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'user_roles', 'users'].sort(),
     );
   });
 });

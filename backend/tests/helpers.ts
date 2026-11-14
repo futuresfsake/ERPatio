@@ -2,6 +2,7 @@ import supertest from 'supertest';
 import pg from 'pg';
 import { createApp } from '../src/app.js';
 import { closePool } from '../src/db/pool.js';
+import { flushSecurityEvents } from '../src/lib/security-events.js';
 import { createUser, provisionTenant } from '../src/modules/tenants/provision.js';
 import { TEST_DB } from './config.js';
 
@@ -9,10 +10,12 @@ export const PASSWORD = 'correct-horse-battery';
 export const owner = new pg.Pool({ connectionString: TEST_DB, max: 3 });
 
 export async function resetData(): Promise<void> {
-  await owner.query('TRUNCATE tenants, tenant_counters, tenant_settings, fiscal_periods, journal_drafts, journal_draft_lines, audit_log, refresh_tokens, user_roles, role_permissions, roles, users, accounts, journal_entries, journal_lines CASCADE');
+  await flushSecurityEvents(); // a late audit write must not race the TRUNCATE
+  await owner.query('TRUNCATE tenants, tenant_counters, tenant_settings, tenant_modules, tenant_keys, email_tokens, consents, fiscal_periods, journal_drafts, journal_draft_lines, audit_log, refresh_tokens, user_roles, role_permissions, roles, users, accounts, journal_entries, journal_lines CASCADE');
 }
 
 export async function shutdown(): Promise<void> {
+  await flushSecurityEvents();
   await closePool();
   await owner.end();
 }
@@ -23,13 +26,13 @@ export interface Seeded {
   users: Record<string, { id: string; email: string }>;
 }
 
-export async function seedTenant(slug: string, users: Record<string, string[]>, isDemo = false): Promise<Seeded> {
+export async function seedTenant(slug: string, users: Record<string, string[]>, isDemo = false, opts: { mfaRequiredRoles?: string[] } = {}): Promise<Seeded> {
   // Fixed years keep the tests independent of the date they run on.
   const fiscalYears = [2025, 2026, 2027];
   const c = await owner.connect();
   try {
     await c.query('BEGIN');
-    const tenantId = await provisionTenant(c, { slug, name: `Tenant ${slug}`, isDemo, fiscalYears });
+    const tenantId = await provisionTenant(c, { slug, name: `Tenant ${slug}`, isDemo, fiscalYears, mfaRequiredRoles: opts.mfaRequiredRoles });
     const out: Seeded['users'] = {};
     for (const [name, roles] of Object.entries(users)) {
       const email = `${name}@${slug}.test`;
@@ -73,3 +76,23 @@ export const entry = (acc: Record<string, string>, amount = '100.00', date = '20
     { account_id: acc['4000']!, debit: '0', credit: amount },
   ],
 });
+
+/** The operator's own workspace with one platform administrator ('opal'). Two-factor is not forced here so tests stay short. */
+export async function seedPlatform(): Promise<Seeded> {
+  const c = await owner.connect();
+  try {
+    await c.query('BEGIN');
+    const tenantId = await provisionTenant(c, { slug: 'platform', name: 'ERPatio platform', modules: [], fiscalYears: [2026] });
+    const rid = (await c.query<{ id: string }>("INSERT INTO roles (tenant_id, name, is_system) VALUES ($1, 'PlatformAdmin', true) RETURNING id", [tenantId])).rows[0]!.id;
+    await c.query("INSERT INTO role_permissions (role_id, permission, tenant_id) VALUES ($1, 'platform:manage', $2)", [rid, tenantId]);
+    const email = 'opal@platform.test';
+    const id = await createUser(c, { tenantId, email, fullName: 'opal', password: PASSWORD, roles: ['PlatformAdmin'] });
+    await c.query('COMMIT');
+    return { tenantId, slug: 'platform', users: { opal: { id, email } } };
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
+}

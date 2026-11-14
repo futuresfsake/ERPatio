@@ -12,4 +12,6 @@ export const TEST_ENV: Record<string, string> = {
   LOCKOUT_THRESHOLD: '5',
   DEMO_MAX_ENTRIES: '100',
   DOCS_ENABLED: 'true',
+  SIGNUP_ENABLED: 'true',
+  HIBP_ENABLED: 'false',
 };

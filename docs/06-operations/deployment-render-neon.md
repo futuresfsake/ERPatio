@@ -34,7 +34,14 @@ Accounts needed: GitHub (repo already there), Neon, Render. Free plans are enoug
    - Enter `DATABASE_URL` (pooled) and `DATABASE_URL_DIRECT` (direct) when asked. `JWT_SECRET` is generated for you.
 4. **First deploy** runs: build both apps, then `npm run migrate && node dist/server.js`. Wait for `/health` to turn green.
 5. **GitHub secret for the nightly reset.** Repo -> Settings -> Secrets and variables -> Actions -> `NEON_DIRECT_URL` = the direct string. Run the workflow "Reset demo workspace" once by hand to confirm it succeeds.
-6. **Verify** (all must pass), then paste the Render URL into the table above and into `README.md`:
+6. **Create the platform administrator** (once), from your machine:
+   ```bash
+   cd backend
+   DATABASE_URL="<direct string>" DATABASE_URL_DIRECT="<direct string>" MASTER_KEY="<the same key>" \
+     PLATFORM_ADMIN_EMAIL=you@example.com PLATFORM_ADMIN_PASSWORD='a long passphrase' npm run platform:admin
+   ```
+   Sign in to workspace `platform`; the first sign-in goes straight to two-factor setup.
+7. **Verify** (all must pass), then paste the Render URL into the table above and into `README.md`:
    - `GET /health` returns `{"status":"ok"}`; `GET /ready` returns `{"status":"ready"}`.
    - Sign in with the demo credentials; Overview shows "Assets equal liabilities plus equity."
    - Browser dev tools: the `erp_refresh` cookie is `HttpOnly`, `Secure`, `SameSite=Strict`.
@@ -49,6 +56,11 @@ Accounts needed: GitHub (repo already there), Neon, Render. Free plans are enoug
 | `DATABASE_URL` | Render (secret) | Neon **pooled** string |
 | `DATABASE_URL_DIRECT` | Render (secret) | Neon **direct** string; migrations and seeding |
 | `JWT_SECRET` | Render (generated) | 32+ random characters. Boot fails in production otherwise |
+| `MASTER_KEY` | Render (secret) | 32 random bytes, base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. **Keep an offline copy**: without it encrypted fields cannot be read. Boot fails in production without it |
+| `MASTER_KEY_PREVIOUS` | Render (during rotation) | Old key; run `npm run keys:rewrap`, then remove |
+| `APP_URL` | Render | The service's public address (emailed links point here) |
+| `SMTP_URL`, `MAIL_FROM` | Render (secret) | Mail provider. Required before `SIGNUP_ENABLED=true` in production |
+| `SIGNUP_ENABLED`, `HIBP_ENABLED` | `render.yaml` | Sign-up stays off until mail works |
 | `JWT_SECRET_PREVIOUS` | Render (during rotation) | Old key still accepted until its tokens expire (15 min) |
 | `COOKIE_SECURE`, `TRUST_PROXY`, `NODE_ENV`, `STATIC_DIR`, `DOCS_ENABLED`, `DEMO_MAX_ENTRIES` | `render.yaml` | Non-secret |
 | `NEON_DIRECT_URL` | GitHub Actions secret | Nightly demo reset |

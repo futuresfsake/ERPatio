@@ -1,7 +1,15 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { admin } from './api';
 import { useAuth } from './auth';
 import { Accounts } from './pages/Accounts';
+import { ForgotPassword, ResetPassword, SignUp, VerifyEmail } from './pages/AccountPages';
+import { Privacy } from './pages/Privacy';
+import { Security } from './pages/Security';
+import { PlatformPage } from './pages/PlatformPage';
+import { People } from './pages/People';
+import { RolesPage } from './pages/RolesPage';
 import { DraftPage } from './pages/DraftPage';
 import { FiscalPeriods } from './pages/FiscalPeriods';
 import { Settings } from './pages/Settings';
@@ -15,39 +23,53 @@ import { Overview } from './pages/Overview';
 import { TrialBalancePage } from './pages/TrialBalance';
 
 function Frame() {
-  const { user, signOut, can } = useAuth();
+  const { user, signOut, can, support, endSupport } = useAuth();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
+  const operator = can('platform:manage');
+  const tenant = useQuery({ queryKey: ['tenant'], queryFn: admin.tenant, enabled: !operator, staleTime: 60_000 });
   const link = (to: string, label: string, end = false) => (
     <NavLink to={to} end={end} onClick={() => setOpen(false)}>
       {label}
     </NavLink>
   );
+  const people = can('users:read');
   return (
     <div className="app">
       <aside className={`rail${open ? ' open' : ''}`} aria-label="Main">
         <div className="wordmark">ERPatio</div>
         <div className="rail-ws">
-          <b>Casa Verde Trading Corp.</b>
-          Demo workspace · PHP
+          <b>{operator ? 'ERPatio platform' : (tenant.data?.name ?? ' ')}</b>
+          {operator ? 'Operator console' : tenant.data ? `${tenant.data.is_demo ? 'Demo workspace' : tenant.data.slug} · ${tenant.data.base_currency}` : ' '}
         </div>
         <nav>
-          <div className="label">Finance</div>
-          {link('/', 'Overview', true)}
-          {link('/accounts', 'Chart of accounts')}
-          {link('/journal', 'Journal')}
-          {link('/periods', 'Fiscal periods')}
-          <div className="label">Reports</div>
-          {link('/trial-balance', 'Trial balance')}
-          {link('/reports/income-statement', 'Income statement')}
-          {link('/reports/balance-sheet', 'Balance sheet')}
-          {(can('audit:read') || can('settings:manage')) && <div className="label">Workspace</div>}
-          {can('audit:read') && link('/audit', 'Audit log')}
-          {can('settings:manage') && link('/settings', 'Settings')}
-          <div className="label">Later</div>
-          <a className="later" aria-disabled="true">Inventory</a>
-          <a className="later" aria-disabled="true">Production</a>
-          <a className="later" aria-disabled="true">Payroll</a>
+          {operator ? (
+            <>
+              <div className="label">Operate</div>
+              {link('/platform', 'Workspaces')}
+            </>
+          ) : (
+            <>
+              <div className="label">Finance</div>
+              {link('/', 'Overview', true)}
+              {link('/accounts', 'Chart of accounts')}
+              {link('/journal', 'Journal')}
+              {link('/periods', 'Fiscal periods')}
+              <div className="label">Reports</div>
+              {link('/trial-balance', 'Trial balance')}
+              {link('/reports/income-statement', 'Income statement')}
+              {link('/reports/balance-sheet', 'Balance sheet')}
+              {(can('audit:read') || can('settings:manage') || people) && <div className="label">Workspace</div>}
+              {people && link('/people', 'People')}
+              {people && link('/roles', 'Roles')}
+              {can('audit:read') && link('/audit', 'Audit log')}
+              {can('settings:manage') && link('/settings', 'Settings')}
+              <div className="label">Later</div>
+              <a className="later" aria-disabled="true">Inventory</a>
+              <a className="later" aria-disabled="true">Production</a>
+              <a className="later" aria-disabled="true">Payroll</a>
+            </>
+          )}
         </nav>
         <div className="rail-foot">
           <div>
@@ -55,6 +77,7 @@ function Frame() {
             <br />
             {user?.roles.join(', ')}
           </div>
+          {!support && <NavLink to="/security" onClick={() => setOpen(false)} style={{ padding: 0, color: 'var(--on-ink)' }}>Account security</NavLink>}
           <button onClick={() => void signOut()}>Sign out</button>
         </div>
       </aside>
@@ -65,6 +88,12 @@ function Frame() {
             {open ? 'Close' : 'Menu'}
           </button>
         </header>
+        {support && (
+          <div className="banner-support" role="status">
+            <span><b>Support session</b> in {support.tenant}. Read-only; it ends after 15 minutes and is recorded in their audit log.</span>
+            <button className="linkbtn" style={{ color: 'inherit' }} onClick={() => void endSupport()}>Leave</button>
+          </div>
+        )}
         <main className="page" key={loc.pathname}>
           <Outlet />
         </main>
@@ -73,11 +102,19 @@ function Frame() {
   );
 }
 
+/** The operator has no books of their own, so the home page is the platform console. */
+function Home() {
+  const { can } = useAuth();
+  return can('platform:manage') ? <Navigate to="/platform" replace /> : <Overview />;
+}
+
 function Protected({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
   const loc = useLocation();
   if (!ready) return <p className="muted" style={{ padding: 32 }} role="status">Loading…</p>;
   if (!user) return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+  // A role that must use two-factor sign-in goes straight to setup until it is done.
+  if (user.mfa_enrollment_required && loc.pathname !== '/security') return <Navigate to="/security" replace />;
   return <>{children}</>;
 }
 
@@ -86,8 +123,13 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={ready && user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/signup" element={<SignUp />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route element={<Protected><Frame /></Protected>}>
-        <Route index element={<Overview />} />
+        <Route index element={<Home />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="journal" element={<Journal />} />
         <Route path="journal/new" element={<NewEntry />} />
@@ -99,6 +141,10 @@ export function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="trial-balance" element={<TrialBalancePage />} />
         <Route path="audit" element={<Audit />} />
+        <Route path="security" element={<Security />} />
+        <Route path="people" element={<People />} />
+        <Route path="roles" element={<RolesPage />} />
+        <Route path="platform" element={<PlatformPage />} />
         <Route path="*" element={<p className="muted">There is nothing at this address.</p>} />
       </Route>
     </Routes>

@@ -46,5 +46,9 @@ M0 is ≈ 150 points against an estimated 35–40 points/sprint. It is deliberat
 
 See [16 Dependencies](16-dependency-map.md).
 
-## Status on 2026-11-14 (branch `feat/m0-foundation-neon-render`)
-M0 is **in progress, not closed**. Built and tested: foundation, login, refresh rotation, lock-out, default-deny, Row-Level Security, audit log, PII register, log masking. Also built ahead of M2 as a vertical slice: chart of accounts, balanced posting, reversal, drafts with optional approval, fiscal periods with close and lock, trial balance, income statement and balance sheet (see [ADR-009](../03-architecture/adr/ADR-009-drafts-periods-and-approval.md)). Open M0 items (sign-up, e-mail verification, password reset, 2FA, field encryption, DSAR/erasure, breach runbook, restore drill, threat-model sign-off) are listed in the [DoD audit](../07-quality/audit-dod.md).
+## Status on 2026-11-14 (branch `feat/m0-complete`)
+- **M0** is built and tested apart from procedures that need people: the restore drill, the breach tabletop, the threat-model sign-off, legal review (G-21) and the licence decision (G-15). The gate is therefore **not yet passed**.
+- **M1** (people, roles, custom roles, module subscriptions, platform operator) is built and tested.
+- **M2** is partly built: ledger, drafts and approval, periods, trial balance, income statement, balance sheet. Vendor bills, customer invoices, aging, VAT, year-end closing and multi-currency are not started.
+- **M3 to M7** are not started.
+See the [DoD audit](../07-quality/audit-dod.md) for the criterion-by-criterion position.
