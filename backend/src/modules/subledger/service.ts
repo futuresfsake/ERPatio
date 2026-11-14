@@ -448,8 +448,7 @@ export const aging = (p: Principal, kind: 'invoice' | 'bill', asOf: string) =>
     const sign = kind === 'invoice' ? 'l.debit - l.credit' : 'l.credit - l.debit';
     const gl = (await c.query<{ bal: string | null }>(
       'SELECT sum(' + sign + ')::text AS bal FROM journal_lines l ' +
-      'JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.entry_date <= $2::date ' +
-      'WHERE l.tenant_id = $1 AND l.account_id = (SELECT ' + col + ' FROM tenant_settings WHERE tenant_id = $1)', [p.tenantId, asOf])).rows[0]?.bal ?? '0';
+      'WHERE l.tenant_id = $1 AND l.entry_date <= $2::date AND l.account_id = (SELECT ' + col + ' FROM tenant_settings WHERE tenant_id = $1)', [p.tenantId, asOf])).rows[0]?.bal ?? '0';
     return {
       as_of: asOf, kind, rows,
       totals: Object.fromEntries(keys.map((k) => [k, fromUnits(sums[k]!)])),

@@ -1,0 +1,12 @@
+{
+  "name": "erpatio-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser smoke test: signs in to the demo workspace and visits the main screens at desktop and phone width.",
+  "scripts": {
+    "smoke": "node smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

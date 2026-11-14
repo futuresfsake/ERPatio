@@ -184,7 +184,8 @@ export const reverseEntry = (p: Principal, id: string, on: string | undefined, i
 
 export const listEntries = (p: Principal, limit: number, offset: number) =>
   withTenant(p.tenantId, async (c) => {
-    const total = Number((await c.query<{ n: string }>('SELECT count(*) AS n FROM journal_entries')).rows[0]?.n ?? 0);
+    // Entries are numbered without gaps and never deleted, so the counter is the exact count without scanning the table.
+    const total = Number((await c.query<{ n: string }>('SELECT journal_seq::text AS n FROM tenant_counters WHERE tenant_id = $1', [p.tenantId])).rows[0]?.n ?? 0);
     const { rows } = await c.query<EntryRow>(
       ENTRY_SELECT + ' ORDER BY e.entry_date DESC, e.entry_no DESC LIMIT $1 OFFSET $2', [limit, offset]);
     return { items: rows.map((r) => ({ ...entryOut(r), lines: [] })), total, limit, offset };
@@ -198,8 +199,7 @@ export const trialBalance = (p: Principal, asOf: string) =>
     const { rows } = await c.query<{ account_id: string; code: string; name: string; type: string; d: string; c: string }>(
       `SELECT a.id AS account_id, a.code, a.name, a.type, sum(l.debit)::text AS d, sum(l.credit)::text AS c
          FROM accounts a
-         JOIN journal_lines l ON l.account_id = a.id
-         JOIN journal_entries e ON e.id = l.entry_id AND e.entry_date <= $1
+         JOIN journal_lines l ON l.account_id = a.id AND l.entry_date <= $1
         GROUP BY a.id, a.code, a.name, a.type
         ORDER BY a.code`,
       [asOf],
