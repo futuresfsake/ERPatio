@@ -167,6 +167,18 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-05 Supply chain (M3 core, migration 008)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-060 | Items and stock on hand | PASS | `stock.test.ts`; unique SKU, deactivate |
+| US-061 | Stock ledger (append-only) with stock card | PASS | running balance; rows cannot be changed or deleted; a database check ties each movement to its sign |
+| US-062 | Purchase orders: draft, approve (gapless number), receive in parts | PASS | over-receipt refused; a received order closes itself; cancel only before stock moves |
+| US-063 | Sales orders: draft, approve, deliver in parts | PASS | delivery refused when stock is short, nothing changes; two simultaneous deliveries cannot oversell |
+| US-064 | Moving-average costing | PASS | the last unit out takes the remaining value, so no residue; awkward thirds still reconcile |
+| US-065 | Stock adjustments with reason | PASS | both directions post to Inventory Adjustments |
+| US-066 | Inventory equals the ledger (gate: variance 0) | PASS | valuation report compares stock value with the inventory account for any date and flags a manual entry; a stock entry cannot be reversed by hand |
+| US-067 | Module subscription gate | PASS | a workspace without `supply_chain` gets 403 `module_disabled` |
+
 ### EPIC-03 General ledger (built ahead of M2)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -314,6 +326,11 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
 | F-25 | ~~No year-end closing~~ **Resolved**. Still missing: comparatives, PDF export, multi-currency, credit notes, bank reconciliation | Medium | Rest of M2 |
 | F-35 | Invoices, bills and receipts are posted directly; they bypass the optional journal approval (approver is not the author) | Medium | Add approval to documents if a customer requires it |
+| F-42 | One location per workspace: no warehouses, bins, lots, serials or unit-of-measure conversion | Medium | Add locations next in M3 |
+| F-43 | A purchase receipt credits Goods Received Not Invoiced; posting the supplier bill does not clear it automatically (the bill line must use account 2050) | Medium | Three-way match: bill from receipt |
+| F-44 | A delivery does not create the customer invoice; there are no purchase or sales returns, landed cost or reorder points | Medium | Invoice from order, returns, reorder levels |
+| F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
+| F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |
 | F-37 | Customer and supplier contact details (email, phone) are not yet in the data-subject export or the erasure routine | Medium | Extend DSAR and erasure to parties before any real customer data is entered |
 | F-38 | `npm audit` reports 3 moderate findings in `glob` and `minimatch`, pulled in by `node-pg-migrate` (a deploy-time tool, not on the request path) | Low | Update when the tool releases a fix; Dependabot is watching |

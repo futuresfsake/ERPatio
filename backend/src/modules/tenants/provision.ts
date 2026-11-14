@@ -18,12 +18,14 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['1300', 'Input VAT', 'asset'],
   ['1500', 'Equipment', 'asset'],
   ['2000', 'Accounts Payable', 'liability'],
+  ['2050', 'Goods Received Not Invoiced', 'liability'],
   ['2100', 'VAT Payable', 'liability'],
   ['3000', "Owner's Capital", 'equity'],
   ['3100', 'Retained Earnings', 'equity'],
   ['4000', 'Sales Revenue', 'revenue'],
   ['4100', 'Other Income', 'revenue'],
   ['5000', 'Cost of Goods Sold', 'expense'],
+  ['5100', 'Inventory Adjustments', 'expense'],
   ['6000', 'Rent Expense', 'expense'],
   ['6100', 'Salaries Expense', 'expense'],
   ['6200', 'Utilities Expense', 'expense'],
@@ -65,10 +67,14 @@ export async function provisionTenant(
     `UPDATE tenant_settings SET
        ar_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1100'),
        ap_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2000'),
-       re_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '3100') WHERE tenant_id = $1`,
+       re_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '3100'),
+       inventory_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1200'),
+       cogs_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5000'),
+       grni_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2050'),
+       adjustment_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5100') WHERE tenant_id = $1`,
     [tid],
   );
-  for (const kind of ['invoice', 'bill']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
+  for (const kind of ['invoice', 'bill', 'po', 'so']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
   await c.query(
     `INSERT INTO tax_codes (tenant_id, code, name, rate, kind, account_id)
      SELECT $1, v.code, v.name, 12, v.kind, a.id FROM (VALUES ('OUT12', 'Output VAT 12%', 'output', '2100'), ('IN12', 'Input VAT 12%', 'input', '1300')) v(code, name, kind, acct)

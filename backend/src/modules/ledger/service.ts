@@ -160,10 +160,11 @@ export const reverseEntry = (p: Principal, id: string, on: string | undefined, i
       `SELECT 1 FROM documents WHERE journal_entry_id = $1 OR void_entry_id = $1
        UNION ALL SELECT 1 FROM payments WHERE journal_entry_id = $1
        UNION ALL SELECT 1 FROM payment_voids WHERE journal_entry_id = $1
+       UNION ALL SELECT 1 FROM stock_movements WHERE journal_entry_id = $1
        UNION ALL SELECT 1 FROM journal_entries WHERE id = $1 AND closing_year IS NOT NULL`,
       [id],
     );
-    if (owned.rowCount) throw new ApiError(409, 'subledger_entry', 'This entry belongs to an invoice, bill, payment or year-end close. Undo it from there.');
+    if (owned.rowCount) throw new ApiError(409, 'subledger_entry', 'This entry belongs to an invoice, bill, payment, stock movement or year-end close. Undo it from there.');
     if (e.reverses_entry_id) throw new ApiError(409, 'not_reversible', 'A reversing entry cannot itself be reversed.');
     const lines = (await c.query<{ account_id: string; debit: string; credit: string; memo: string | null }>(
       'SELECT account_id, debit::text, credit::text, memo FROM journal_lines WHERE entry_id = $1 ORDER BY line_no', [id])).rows;

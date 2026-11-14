@@ -14,6 +14,7 @@ import { DEMO_ROLE } from '../src/lib/permissions.js';
 import { createUser, provisionTenant } from '../src/modules/tenants/provision.js';
 import { postEntry } from '../src/modules/ledger/service.js';
 import * as sub from '../src/modules/subledger/service.js';
+import * as stk from '../src/modules/stock/service.js';
 import type { Principal } from '../src/lib/security.js';
 
 export const DEMO_SLUG = 'casa-verde-demo';
@@ -60,14 +61,14 @@ export async function seedDemo(reset: boolean): Promise<string> {
       await c.query("SELECT set_config('app.tenant_id', $1, true)", [existing.id]);
       // Append-only triggers are lifted for this one maintenance transaction, demo tenant only.
       const guarded = ['audit_log', 'journal_lines', 'journal_entries'];
-      const subledger = ['payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      const subledger = ['sales_order_lines', 'sales_orders', 'purchase_order_lines', 'purchase_orders', 'stock_movements', 'item_stock', 'items', 'payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       for (const t of [...subledger, ...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
         await c.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [existing.id]); // eslint-disable-line no-restricted-syntax
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);
     }
-    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true });
+    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain'] });
     userId = await createUser(c, { tenantId, email: DEMO_EMAIL, fullName: 'Demo Accountant', password: DEMO_PASSWORD, roles: [DEMO_ROLE[0]] });
     await c.query('COMMIT');
   } catch (e) {
@@ -106,7 +107,19 @@ export async function seedDemo(reset: boolean): Promise<string> {
   const b1 = await sub.createDraft(principal, 'bill', { party_id: supp, doc_date: isoDaysAgo(10), lines: [line('6000', 'Flour and sugar', '12000.00', 'IN12')] }, 'seed');
   await sub.postDocument(principal, 'bill', b1.id, 'seed');
   await sub.createDraft(principal, 'invoice', { party_id: cust, doc_date: isoDaysAgo(1), lines: [line('4000', 'Draft: weekend event', '15000.00', 'OUT12')] }, 'seed');
-  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries and 4 invoices, bills and receipts; sign in as ${DEMO_EMAIL}`;
+  // Supply chain: two items, a purchase order received in full, a sales order part-delivered, one still open.
+  const flour = (await stk.createItem(principal, { sku: 'FLR-25', name: 'Flour 25kg', uom: 'sack' }, 'seed')).id as string;
+  const sugar = (await stk.createItem(principal, { sku: 'SGR-50', name: 'Sugar 50kg', uom: 'sack' }, 'seed')).id as string;
+  const open = async (k: 'po' | 'so', data: Parameters<typeof stk.createOrder>[2]) => {
+    const o = await stk.createOrder(principal, k, data, 'seed');
+    return stk.approveOrder(principal, k, o.id, 'seed');
+  };
+  const po1 = await open('po', { party_id: supp, order_date: isoDaysAgo(30), lines: [{ item_id: flour, quantity: '100', unit_cost: '950.00' }, { item_id: sugar, quantity: '40', unit_cost: '2300.00' }] });
+  await stk.fulfil(principal, 'po', po1.id, { date: isoDaysAgo(28), lines: po1.lines.map((l: { id: string; quantity: string }) => ({ line_id: l.id, quantity: l.quantity })) }, 'seed');
+  const so1 = await open('so', { party_id: cust, order_date: isoDaysAgo(12), lines: [{ item_id: flour, quantity: '30', unit_price: '1300.00' }] });
+  await stk.fulfil(principal, 'so', so1.id, { date: isoDaysAgo(10), lines: [{ line_id: so1.lines[0].id, quantity: '20' }] }, 'seed');
+  await open('po', { party_id: supp, order_date: isoDaysAgo(2), lines: [{ item_id: flour, quantity: '60', unit_cost: '960.00' }] });
+  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries, 4 invoices, bills and receipts, and sample stock; sign in as ${DEMO_EMAIL}`;
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` || process.argv[1]?.endsWith('seed-demo.ts')) {
