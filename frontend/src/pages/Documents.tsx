@@ -18,7 +18,7 @@ export function DocumentList({ side }: { side: Side }) {
   return (
     <>
       <div className="page-head">
-        <div><h1>{S.Docs}</h1><p className="sub">{side === 'ar' ? 'Posting an invoice debits receivables and credits revenue and output tax.' : 'Posting a bill debits the expense and input tax and credits payables.'}</p></div>
+        <div><h1>{S.Docs}</h1><p className="sub">{S.note ? (S.isAr ? 'A credit note reduces what a customer owes. Apply it to an open invoice.' : 'A debit note reduces what you owe a supplier. Apply it to an open bill.') : S.isAr ? 'Posting an invoice debits receivables and credits revenue and output tax.' : 'Posting a bill debits the expense and input tax and credits payables.'}</p></div>
         <div className="actions">
           <div><label htmlFor="st">Show</label>
             <select id="st" value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 'auto' }}>
@@ -81,9 +81,9 @@ export function DocumentEditor({ side }: { side: Side }) {
     setLines(d.lines.map((l) => ({ description: l.description, account_id: l.account_id, quantity: l.quantity.replace(/\.?0+$/, '') || '0', unit_price: l.unit_price.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''), tax_code_id: l.tax_code_id ?? '' })));
   }
 
-  const wantedTax = side === 'ar' ? 'output' : 'input';
+  const wantedTax = S.isAr ? 'output' : 'input';
   const usable = (codes.data ?? []).filter((c) => c.is_active && c.kind === wantedTax);
-  const postable = (accounts.data ?? []).filter((a) => a.is_active && (side === 'ar' ? a.type === 'revenue' : a.type !== 'revenue' && a.type !== 'equity'));
+  const postable = (accounts.data ?? []).filter((a) => a.is_active && (S.isAr ? a.type === 'revenue' : a.type !== 'revenue' && a.type !== 'equity'));
 
   // Live preview in integer units; the server recomputes and is the authority.
   const preview = useMemo(() => {
@@ -193,7 +193,7 @@ export function DocumentDetail({ side }: { side: Side }) {
         {d && write && (
           <div className="actions">
             {d.status === 'draft' && <><Link className="btn" to={`/${S.docs}/${d.id}/edit`}>Edit</Link><button className="btn" disabled={act.isPending} onClick={() => act.mutate('delete')}>Delete draft</button><button className="btn primary" disabled={act.isPending} onClick={() => act.mutate('post')}>Post to ledger</button></>}
-            {d.status === 'posted' && fromApi(d.balance) > 0n && <button className="btn primary" onClick={() => setPaying(true)}>Record {S.PayOne.toLowerCase()}</button>}
+            {d.status === 'posted' && fromApi(d.balance) > 0n && <button className="btn primary" onClick={() => setPaying(true)}>{S.note ? 'Apply to open items' : `Record ${S.PayOne.toLowerCase()}`}</button>}
             {d.status === 'posted' && fromApi(d.paid_total) === 0n && <button className="btn" disabled={act.isPending} onClick={() => { if (window.confirm(`Void ${label(S, d)}? The ledger entry is reversed.`)) act.mutate('void'); }}>Void</button>}
           </div>
         )}
@@ -227,14 +227,16 @@ export function DocumentDetail({ side }: { side: Side }) {
                 <tbody>{d.payments.map((p) => <tr key={p.payment_id} className={p.voided ? 'off' : ''}><td>{longDate(p.pay_date)}</td><td>{p.method}</td><td>{p.reference ?? ''}</td><td className="num">{formatApiNum(p.amount)}</td><td className="num">{p.voided ? 'Voided' : write && <button className="linkbtn" disabled={undo.isPending} onClick={() => { if (window.confirm('Void this ' + S.PayOne.toLowerCase() + '? The ledger entry is reversed and the balance reopens.')) undo.mutate(p.payment_id); }}>Void</button>}</td></tr>)}</tbody></table></div>
             </>
           )}
-          <PayDialog side={side} doc={d} open={paying} onClose={() => setPaying(false)} onDone={() => { toast(`${S.PayOne} recorded`); refresh(); }} />
+          <button className="btn no-print" style={{ marginTop: 16 }} onClick={() => window.print()}>Print or save as PDF</button>
+          {S.note ? <ApplyDialog side={side} doc={d} open={paying} onClose={() => setPaying(false)} onDone={() => { toast('Applied'); refresh(); }} /> : null}
+          {!S.note && <PayDialog side={side as 'ar' | 'ap'} doc={d} open={paying} onClose={() => setPaying(false)} onDone={() => { toast(`${S.PayOne} recorded`); refresh(); }} />}
         </>
       )}
     </>
   );
 }
 
-function PayDialog({ side, doc, open, onClose, onDone }: { side: Side; doc: Doc; open: boolean; onClose: () => void; onDone: () => void }) {
+function PayDialog({ side, doc, open, onClose, onDone }: { side: 'ar' | 'ap'; doc: Doc; open: boolean; onClose: () => void; onDone: () => void }) {
   const S = SIDES[side];
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: endpoints.accounts, enabled: open });
   const [bank, setBank] = useState('');
@@ -260,12 +262,47 @@ function PayDialog({ side, doc, open, onClose, onDone }: { side: Side; doc: Doc;
       <form onSubmit={submit} className="stack" noValidate>
         <div><label htmlFor="pa">Amount</label><input id="pa" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={formatApiNum(doc.balance)} autoFocus /><div className="hint">Leave blank to settle the full balance of {formatApiNum(doc.balance)}.</div></div>
         <div><label htmlFor="pdt">Date</label><input id="pdt" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 'auto' }} /></div>
-        <div><label htmlFor="pb">{side === 'ar' ? 'Deposited to' : 'Paid from'}</label>
+        <div><label htmlFor="pb">{S.isAr ? 'Deposited to' : 'Paid from'}</label>
           <select id="pb" value={bank} onChange={(e) => setBank(e.target.value)}><option value="">Choose…</option>{assets.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></div>
         <div><label htmlFor="pm">Method</label><select id="pm" value={method} onChange={(e) => setMethod(e.target.value)}>{['bank', 'cash', 'check', 'card', 'online'].map((m) => <option key={m}>{m}</option>)}</select></div>
         <div><label htmlFor="prf">Reference</label><input id="prf" value={ref} onChange={(e) => setRef(e.target.value)} maxLength={100} /></div>
         {err && <div className="field-error" role="alert">{err}</div>}
         <div className="row"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={pay.isPending}>Record</button></div>
+      </form>
+    </Dialog>
+  );
+}
+
+function ApplyDialog({ side, doc, open, onClose, onDone }: { side: Side; doc: Doc; open: boolean; onClose: () => void; onDone: () => void }) {
+  const S = SIDES[side];
+  const target = SIDES[S.target];
+  const open_ = useQuery({ queryKey: ['docs', S.target, 'posted'], queryFn: () => sub.docs(S.target, 'posted'), enabled: open });
+  const [date, setDate] = useState(todayIso());
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [err, setErr] = useState<string | null>(null);
+  const items = (open_.data?.items ?? []).filter((x) => x.party_id === doc.party_id && fromApi(x.balance) > 0n);
+  const chosen = items.filter((x) => (amounts[x.id] ?? '').trim() !== '');
+  const m = useMutation({
+    mutationFn: () => sub.applyNote(side, doc.id, date, chosen.map((x) => ({ document_id: x.id, amount: toApi(parseAmount(amounts[x.id]!)!) }))),
+    onSuccess: () => { onDone(); setAmounts({}); setErr(null); onClose(); },
+    onError: (e) => setErr(e instanceof ApiError ? e.message : 'Could not apply.'),
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (chosen.length === 0) return setErr('Enter an amount against at least one document.');
+    if (chosen.some((x) => parseAmount(amounts[x.id]!) === null || parseAmount(amounts[x.id]!) === 0n)) return setErr('Amounts look like 250 or 250.50.');
+    m.mutate();
+  };
+  return (
+    <Dialog open={open} onClose={() => { setErr(null); onClose(); }} title={`Apply ${S.Doc.toLowerCase()}`}>
+      <form onSubmit={submit} className="stack" noValidate>
+        <p className="muted">{formatApiNum(doc.balance)} left to apply.</p>
+        <div><label htmlFor="apd">Date</label><input id="apd" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 'auto' }} /></div>
+        {open_.isLoading && <Loading what="open items" />}
+        {items.map((x) => <div key={x.id}><label htmlFor={`ap${x.id}`}>{target.prefix}-{x.doc_no} · {longDate(x.doc_date)} · owed {formatApiNum(x.balance)}</label><input id={`ap${x.id}`} inputMode="decimal" value={amounts[x.id] ?? ''} onChange={(e) => setAmounts({ ...amounts, [x.id]: e.target.value })} style={{ maxWidth: 160 }} /></div>)}
+        {open_.data && items.length === 0 && <p className="muted">This {S.party} has nothing open to apply it to.</p>}
+        {err && <div className="field-error" role="alert">{err}</div>}
+        <div className="row"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={m.isPending}>Apply</button></div>
       </form>
     </Dialog>
   );

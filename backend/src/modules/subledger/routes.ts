@@ -3,7 +3,7 @@ import { P, requirePermission } from '../../lib/permissions.js';
 import { route } from '../../lib/route.js';
 import { IdParam } from '../ledger/schemas.js';
 import * as svc from './service.js';
-import { AgingQuery, DocListQuery, DocumentIn, PartyIn, PartyListQuery, PartyPatch, PaymentIn, TaxCodeIn, TaxCodePatch, VatQuery, VoidIn } from './schemas.js';
+import { AgingQuery, ApplyIn, DocListQuery, DocumentIn, PartyIn, PartyListQuery, PartyPatch, PaymentIn, TaxCodeIn, TaxCodePatch, VatQuery, VoidIn } from './schemas.js';
 import { z } from 'zod';
 
 const PayList = z.object({ limit: z.coerce.number().int().min(1).max(100).default(25), offset: z.coerce.number().int().min(0).default(0) });
@@ -54,6 +54,30 @@ export function subledgerRouter(prefix: string): Router {
 
     route(r, prefix, { method: 'get', path: `/reports/aging/${s.aging}`, tag: 'reports', summary: `${s.aging} aging`, guard: requirePermission(s.read), query: AgingQuery,
       handler: ({ principal, query }) => svc.aging(principal, s.doc, query.as_of ?? new Date().toISOString().slice(0, 10)) });
+  }
+
+  // Credit notes (customers) and debit notes (suppliers): the same document engine, plus applying them to open items.
+  const notes = [
+    { kind: 'credit_note', path: 'credit-notes', read: P.RECEIVABLES_READ, write: P.RECEIVABLES_WRITE, tag: 'receivables' },
+    { kind: 'debit_note', path: 'debit-notes', read: P.PAYABLES_READ, write: P.PAYABLES_WRITE, tag: 'payables' },
+  ] as const;
+  for (const n of notes) {
+    route(r, prefix, { method: 'get', path: `/${n.path}`, tag: n.tag, summary: `List ${n.path}`, guard: requirePermission(n.read), query: DocListQuery,
+      handler: ({ principal, query }) => svc.listDocuments(principal, n.kind, query) });
+    route(r, prefix, { method: 'post', path: `/${n.path}`, tag: n.tag, summary: `Save a draft in ${n.path}`, status: 201, guard: requirePermission(n.write), body: DocumentIn,
+      handler: ({ principal, body, req }) => svc.createDraft(principal, n.kind, body, req.ip) });
+    route(r, prefix, { method: 'get', path: `/${n.path}/:id`, tag: n.tag, summary: 'Get one note', guard: requirePermission(n.read), params: IdParam,
+      handler: ({ principal, params }) => svc.getDocument(principal, n.kind, params.id) });
+    route(r, prefix, { method: 'put', path: `/${n.path}/:id`, tag: n.tag, summary: 'Replace a draft note', guard: requirePermission(n.write), params: IdParam, body: DocumentIn,
+      handler: ({ principal, params, body, req }) => svc.updateDraft(principal, n.kind, params.id, body, req.ip) });
+    route(r, prefix, { method: 'delete', path: `/${n.path}/:id`, tag: n.tag, summary: 'Delete a draft note', guard: requirePermission(n.write), params: IdParam,
+      handler: ({ principal, params, req }) => svc.deleteDraft(principal, n.kind, params.id, req.ip) });
+    route(r, prefix, { method: 'post', path: `/${n.path}/:id/post`, tag: n.tag, summary: 'Post a note to the ledger', guard: requirePermission(n.write), params: IdParam,
+      handler: ({ principal, params, req }) => svc.postDocument(principal, n.kind, params.id, req.ip) });
+    route(r, prefix, { method: 'post', path: `/${n.path}/:id/void`, tag: n.tag, summary: 'Void a posted note that has not been applied', guard: requirePermission(n.write), params: IdParam, body: VoidIn,
+      handler: ({ principal, params, body, req }) => svc.voidDocument(principal, n.kind, params.id, (body as { void_date?: string }).void_date, req.ip) });
+    route(r, prefix, { method: 'post', path: `/${n.path}/:id/apply`, tag: n.tag, summary: 'Use a posted note against open items', guard: requirePermission(n.write), params: IdParam, body: ApplyIn,
+      handler: ({ principal, params, body, req }) => svc.applyNote(principal, n.kind, params.id, body, req.ip) });
   }
 
   route(r, prefix, { method: 'get', path: '/tax-codes', tag: 'finance', summary: 'List tax codes', guard: requirePermission(P.ACCOUNTS_READ),

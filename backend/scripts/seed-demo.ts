@@ -61,11 +61,11 @@ export async function seedDemo(reset: boolean): Promise<string> {
       await c.query("SELECT set_config('app.tenant_id', $1, true)", [existing.id]);
       // Append-only triggers are lifted for this one maintenance transaction, demo tenant only.
       const guarded = ['audit_log', 'journal_lines', 'journal_entries'];
-      const subledger = ['sales_order_lines', 'sales_orders', 'purchase_order_lines', 'purchase_orders', 'stock_movements', 'item_stock', 'items', 'payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      const subledger = ['bank_matches', 'bank_statement_lines', 'credit_applications', 'sales_order_lines', 'sales_orders', 'purchase_order_lines', 'purchase_orders', 'stock_movements', 'item_stock', 'items', 'payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       for (const t of [...subledger, ...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
         await c.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [existing.id]); // eslint-disable-line no-restricted-syntax
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);
     }
     tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain'] });

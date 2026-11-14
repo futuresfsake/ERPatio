@@ -167,6 +167,18 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-04b Credit notes and bank (M2, migration 010)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-051 | Credit notes (customers) and debit notes (suppliers) | PASS | mirror-image postings; separate gapless numbers; wrong-side tax code and wrong party kind refused (`notes-bank.test.ts`) |
+| US-052 | Apply a note to open items | PASS | over-application, other party, draft note refused; two simultaneous applications cannot use one credit twice; aging and ledger still agree |
+| US-053 | Bank statement import | PASS | idempotent; identical lines in one file kept; zero, empty and non-asset refused; append-only |
+| US-054 | Match, auto-match, unmatch | PASS | only unambiguous pairs auto-match; amount and account must agree; one to one |
+| US-055 | Post a statement line (fee, interest) | PASS | goes through normal posting; matched in the same step; once only |
+| US-056 | Reconciliation report | PASS | ledger vs statement difference, unmatched on both sides, whether the difference is explained |
+| US-057 | Printable documents (PDF via print) | PARTIAL | print stylesheet; layout checked by eye only (ADR-011) |
+| US-058 | Multi-currency | NOT MET (decision) | single currency by design, ADR-011 |
+
 ### EPIC-05 Supply chain (M3 core, migration 008)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -333,6 +345,9 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-42 | One location per workspace: no warehouses, bins, lots, serials or unit-of-measure conversion. **Decision:** accepted for the pilot; build when a pilot customer has more than one stock room | Medium | Revisit after M7 pilot feedback |
 | F-43 | ~~Bill does not clear goods received~~ **Resolved** (bill from receipt). A price difference is left on 2050 as a visible variance; there is no automatic price-variance posting | Low | Add a purchase price variance account if a customer needs it |
 | F-44 | ~~No invoice from delivery, returns or reorder points~~ **Resolved**. Landed cost (freight, duty added to item cost) is still missing | Low | Add with locations |
+| F-47 | Bank reconciliation assumes the imported statement starts where the books do; no statement closing balance or opening balance is entered | Low | Add opening balance and statement closing balance if a customer needs a signed-off reconciliation |
+| F-48 | A credit or debit note application cannot be undone | Low | Add an un-apply that reverses the totals |
+| F-49 | Multi-currency is not built (ADR-011) | Medium | Build when a pilot customer needs it |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

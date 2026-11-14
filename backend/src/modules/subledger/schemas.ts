@@ -83,3 +83,5 @@ export type PaymentIn = z.infer<typeof PaymentIn>;
 
 export const AgingQuery = z.object({ as_of: isoDate.optional() });
 export const VatQuery = z.object({ from: isoDate, to: isoDate });
+
+export const ApplyIn = z.object({ date: isoDate, allocations: z.array(z.object({ document_id: z.uuid(), amount: money })).min(1).max(100) });

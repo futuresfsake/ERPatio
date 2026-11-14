@@ -1,10 +1,12 @@
 /** Receivables and payables endpoints. One shape serves both sides; the `side` picks the URL names. */
 import { api } from './api';
 
-export type Side = 'ar' | 'ap';
+export type Side = 'ar' | 'ap' | 'arc' | 'apc';
 export const SIDES = {
-  ar: { party: 'customer', parties: 'customers', Party: 'Customer', Parties: 'Customers', doc: 'invoice', docs: 'invoices', Doc: 'Invoice', Docs: 'Invoices', pay: 'receipts', PayOne: 'Receipt', prefix: 'INV', aging: 'receivables', read: 'receivables:read', write: 'receivables:write', paid: 'Received', owed: 'Owed to you' },
-  ap: { party: 'supplier', parties: 'suppliers', Party: 'Supplier', Parties: 'Suppliers', doc: 'bill', docs: 'bills', Doc: 'Bill', Docs: 'Bills', pay: 'vendor-payments', PayOne: 'Payment', prefix: 'BILL', aging: 'payables', read: 'payables:read', write: 'payables:write', paid: 'Paid', owed: 'You owe' },
+  ar: { party: 'customer', parties: 'customers', Party: 'Customer', Parties: 'Customers', doc: 'invoice', docs: 'invoices', Doc: 'Invoice', Docs: 'Invoices', pay: 'receipts', PayOne: 'Receipt', prefix: 'INV', aging: 'receivables', read: 'receivables:read', write: 'receivables:write', paid: 'Received', owed: 'Owed to you', isAr: true, note: false, target: 'ar' },
+  arc: { party: 'customer', parties: 'customers', Party: 'Customer', Parties: 'Customers', doc: 'credit_note', docs: 'credit-notes', Doc: 'Credit note', Docs: 'Credit notes', prefix: 'CN', pay: 'receipts', PayOne: 'Credit', aging: 'receivables', read: 'receivables:read', write: 'receivables:write', paid: 'Applied', owed: 'Credit left', isAr: true, note: true, target: 'ar' },
+  apc: { party: 'supplier', parties: 'suppliers', Party: 'Supplier', Parties: 'Suppliers', doc: 'debit_note', docs: 'debit-notes', Doc: 'Debit note', Docs: 'Debit notes', prefix: 'DN', pay: 'vendor-payments', PayOne: 'Debit', aging: 'payables', read: 'payables:read', write: 'payables:write', paid: 'Applied', owed: 'Credit left', isAr: false, note: true, target: 'ap' },
+  ap: { party: 'supplier', parties: 'suppliers', Party: 'Supplier', Parties: 'Suppliers', doc: 'bill', docs: 'bills', Doc: 'Bill', Docs: 'Bills', pay: 'vendor-payments', PayOne: 'Payment', prefix: 'BILL', aging: 'payables', read: 'payables:read', write: 'payables:write', paid: 'Paid', owed: 'You owe', isAr: false, note: false, target: 'ap' },
 } as const;
 
 export interface Party { id: string; kind: string; code: string; name: string; email: string | null; phone: string | null; has_tin: boolean; terms_days: number; is_active: boolean }
@@ -13,11 +15,11 @@ export interface TaxCode { id: string; code: string; name: string; rate: string;
 
 export interface DocLine { line_no: number; description: string; account_id: string; account_code: string; quantity: string; unit_price: string; tax_code_id: string | null; tax_code: string | null; net: string; tax: string }
 export interface Doc {
-  id: string; kind: 'invoice' | 'bill'; doc_no: string | null; party_id: string; party_code: string; party_name: string; doc_date: string; due_date: string;
+  id: string; kind: 'invoice' | 'bill' | 'credit_note' | 'debit_note'; doc_no: string | null; party_id: string; party_code: string; party_name: string; doc_date: string; due_date: string;
   reference: string | null; notes: string | null; status: 'draft' | 'posted' | 'void'; subtotal: string; tax_total: string; total: string; paid_total: string; balance: string;
   journal_entry_id: string | null; void_entry_id: string | null; posted_at: string | null;
 }
-export interface DocDetail extends Doc { lines: DocLine[]; payments: { payment_id: string; pay_date: string; method: string; reference: string | null; amount: string; voided: boolean }[] }
+export interface DocDetail extends Doc { lines: DocLine[]; payments: { payment_id: string; pay_date: string; method: string; reference: string | null; amount: string; voided: boolean }[]; applications: { applied_on: string; amount: string; note_kind: string; note_no: string; target_kind: string; target_no: string }[] }
 export interface DocInput {
   party_id: string; doc_date: string; due_date?: string; reference?: string; notes?: string;
   lines: { description: string; account_id: string; quantity: string; unit_price: string; tax_code_id: string | null }[];
@@ -43,6 +45,7 @@ export const sub = {
   postDoc: (s: Side, id: string) => api<DocDetail>(`/${SIDES[s].docs}/${id}/post`, { method: 'POST' }),
   voidDoc: (s: Side, id: string) => api<DocDetail>(`/${SIDES[s].docs}/${id}/void`, { method: 'POST', json: {} }),
   pay: (s: Side, p: PaymentInput) => api<{ id: string; amount: string }>(`/${SIDES[s].pay}`, { method: 'POST', json: p }),
+  applyNote: (s: Side, id: string, date: string, allocations: { document_id: string; amount: string }[]) => api<DocDetail>(`/${SIDES[s].docs}/${id}/apply`, { method: 'POST', json: { date, allocations } }),
   voidPayment: (s: Side, id: string) => api<{ id: string; voided: boolean }>(`/${SIDES[s].pay}/${id}/void`, { method: 'POST', json: {} }),
   closingPreview: (year: number) => api<ClosingPreview>(`/fiscal-years/${year}/closing-preview`),
   closeYear: (year: number) => api<{ year: number; net_income: string }>(`/fiscal-years/${year}/close`, { method: 'POST' }),

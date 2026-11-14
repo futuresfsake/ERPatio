@@ -100,7 +100,7 @@ describe('row-level security enforced by the database itself', () => {
     expect(r.rows[0]).toEqual({ rolbypassrls: false, rolsuper: false, rolcanlogin: false });
     const forced = await owner.query("SELECT relname FROM pg_class WHERE relforcerowsecurity AND relnamespace = 'public'::regnamespace");
     expect(forced.rows.map((x) => x.relname).sort()).toEqual(
-      ['accounts', 'audit_log', 'consents', 'doc_counters', 'item_stock', 'items', 'document_lines', 'documents', 'email_tokens', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'parties', 'purchase_order_lines', 'purchase_orders', 'sales_order_lines', 'sales_orders', 'stock_movements', 'payment_allocations', 'payment_voids', 'payments', 'refresh_tokens', 'role_permissions', 'roles', 'tax_codes', 'tenant_counters', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'user_roles', 'users'].sort(),
+      ['accounts', 'audit_log', 'bank_matches', 'bank_statement_lines', 'credit_applications', 'consents', 'doc_counters', 'item_stock', 'items', 'document_lines', 'documents', 'email_tokens', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'parties', 'purchase_order_lines', 'purchase_orders', 'sales_order_lines', 'sales_orders', 'stock_movements', 'payment_allocations', 'payment_voids', 'payments', 'refresh_tokens', 'role_permissions', 'roles', 'tax_codes', 'tenant_counters', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'user_roles', 'users'].sort(),
     );
   });
 });

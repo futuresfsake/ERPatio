@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../api';
 import { useAuth } from '../auth';
-import { SIDES, sub, type Side } from '../subledger';
+import { SIDES, sub } from '../subledger';
 import { Dialog, Loading, Problem, useToast } from '../ui';
 
-export function Parties({ side }: { side: Side }) {
+export function Parties({ side }: { side: 'ar' | 'ap' }) {
   const S = SIDES[side];
   const { can } = useAuth();
   const toast = useToast();
@@ -52,7 +52,7 @@ export function Parties({ side }: { side: Side }) {
   );
 }
 
-function AddParty({ side, open, onClose, onDone }: { side: Side; open: boolean; onClose: () => void; onDone: () => void }) {
+function AddParty({ side, open, onClose, onDone }: { side: 'ar' | 'ap'; open: boolean; onClose: () => void; onDone: () => void }) {
   const S = SIDES[side];
   const [f, setF] = useState({ code: '', name: '', email: '', phone: '', tin: '', terms: '30' });
   const [err, setErr] = useState<string | null>(null);

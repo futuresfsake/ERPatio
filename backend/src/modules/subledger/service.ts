@@ -14,7 +14,12 @@ import { insertEntry } from '../ledger/service.js';
 import type { EntryIn } from '../ledger/schemas.js';
 import type { DocumentIn, PartyIn, PartyPatch, PaymentIn, TaxCodeIn } from './schemas.js';
 
-export type DocKind = 'invoice' | 'bill';
+export type DocKind = 'invoice' | 'bill' | 'credit_note' | 'debit_note';
+
+/** Receivable-side documents (customers) and what each kind is called in messages and numbers. */
+const isAr = (k: DocKind) => k === 'invoice' || k === 'credit_note';
+const NAME: Record<DocKind, string> = { invoice: 'Invoice', bill: 'Bill', credit_note: 'Credit note', debit_note: 'Debit note' };
+const PREFIX: Record<DocKind, string> = { invoice: 'INV', bill: 'BILL', credit_note: 'CN', debit_note: 'DN' };
 export type PartyKind = 'customer' | 'supplier';
 
 const CENT = 100n; // units per 0.01
@@ -108,7 +113,7 @@ export const setTaxCodeActive = (p: Principal, id: string, active: boolean, ip?:
   });
 
 // ------------------------------------------------------------------ documents
-const partyKindFor = (k: DocKind): PartyKind => (k === 'invoice' ? 'customer' : 'supplier');
+const partyKindFor = (k: DocKind): PartyKind => (isAr(k) ? 'customer' : 'supplier');
 
 interface Computed { lines: { net: bigint; tax: bigint }[]; subtotal: bigint; tax: bigint; total: bigint }
 
@@ -119,7 +124,7 @@ async function compute(c: PoolClient, tenantId: string, kind: DocKind, data: Doc
   if (codeIds.length) {
     const { rows } = await c.query<{ id: string; rate: string; kind: string }>(
       'SELECT id, rate::text, kind FROM tax_codes WHERE tenant_id = $1 AND id = ANY($2::uuid[]) AND is_active', [tenantId, codeIds]);
-    const wanted = kind === 'invoice' ? 'output' : 'input';
+    const wanted = isAr(kind) ? 'output' : 'input';
     for (const r of rows) {
       if (r.kind !== wanted) throw new ApiError(422, 'invalid_tax_code', `A ${kind} can only use ${wanted} tax codes.`);
       rates.set(r.id, toUnits(r.rate));
@@ -172,7 +177,7 @@ const DOC_SELECT = `
 
 async function loadDoc(c: PoolClient, tenantId: string, kind: DocKind, id: string) {
   const d = (await c.query(DOC_SELECT + ' WHERE d.tenant_id = $1 AND d.kind = $2 AND d.id = $3', [tenantId, kind, id])).rows[0];
-  if (!d) throw notFound(kind === 'invoice' ? 'Invoice' : 'Bill');
+  if (!d) throw notFound(NAME[kind]);
   const lines = (await c.query(
     `SELECT l.line_no, l.description, l.account_id, a.code AS account_code, l.quantity::text, l.unit_price::text,
             l.tax_code_id, t.code AS tax_code, l.net::text, l.tax::text, l.po_line_id, l.so_line_id
@@ -184,7 +189,11 @@ async function loadDoc(c: PoolClient, tenantId: string, kind: DocKind, id: strin
        JOIN payments y ON y.id = a.payment_id AND y.tenant_id = a.tenant_id
        LEFT JOIN payment_voids v ON v.payment_id = y.id AND v.tenant_id = y.tenant_id
       WHERE a.tenant_id = $1 AND a.document_id = $2 ORDER BY y.pay_date, y.created_at`, [tenantId, id])).rows;
-  return { ...d, lines, payments };
+  const applications = (await c.query(
+    `SELECT ca.applied_on, ca.amount::text, n.kind AS note_kind, n.doc_no AS note_no, t.kind AS target_kind, t.doc_no AS target_no
+       FROM credit_applications ca JOIN documents n ON n.id = ca.note_id AND n.tenant_id = ca.tenant_id JOIN documents t ON t.id = ca.document_id AND t.tenant_id = ca.tenant_id
+      WHERE ca.tenant_id = $1 AND (ca.note_id = $2 OR ca.document_id = $2) ORDER BY ca.applied_on, ca.created_at`, [tenantId, id])).rows;
+  return { ...d, lines, payments, applications };
 }
 
 export const listDocuments = (p: Principal, kind: DocKind, q: { status?: string; party_id?: string; limit: number; offset: number }) =>
@@ -221,7 +230,7 @@ export async function createDraftInTx(c: PoolClient, p: Principal, kind: DocKind
 
 async function lockDraft(c: PoolClient, tenantId: string, kind: DocKind, id: string) {
   const d = (await c.query<{ status: string }>('SELECT status FROM documents WHERE tenant_id = $1 AND kind = $2 AND id = $3 FOR UPDATE', [tenantId, kind, id])).rows[0];
-  if (!d) throw notFound(kind === 'invoice' ? 'Invoice' : 'Bill');
+  if (!d) throw notFound(NAME[kind]);
   if (d.status !== 'draft') throw new ApiError(409, 'not_draft', 'Only a draft can be changed. Void a posted document instead.');
 }
 
@@ -251,9 +260,9 @@ export const deleteDraft = (p: Principal, kind: DocKind, id: string, ip?: string
   });
 
 async function controlAccount(c: PoolClient, tenantId: string, kind: DocKind): Promise<string> {
-  const col = kind === 'invoice' ? 'ar_account_id' : 'ap_account_id'; // constant, never from input
+  const col = isAr(kind) ? 'ar_account_id' : 'ap_account_id'; // constant, never from input
   const r = (await c.query<{ id: string | null }>('SELECT ' + col + ' AS id FROM tenant_settings WHERE tenant_id = $1', [tenantId])).rows[0];
-  if (!r?.id) throw new ApiError(409, 'no_control_account', `Set the ${kind === 'invoice' ? 'receivables' : 'payables'} control account in settings first.`);
+  if (!r?.id) throw new ApiError(409, 'no_control_account', `Set the ${isAr(kind) ? 'receivables' : 'payables'} control account in settings first.`);
   return r.id;
 }
 
@@ -283,7 +292,7 @@ export const postDocument = (p: Principal, kind: DocKind, id: string, ip?: strin
 
     // Billing or invoicing an order line is counted here, at posting, so two drafts cannot bill the same goods twice.
     for (const l of lines) {
-      const link = kind === 'bill' ? l.po_line_id : l.so_line_id;
+      const link = kind === 'bill' ? l.po_line_id : kind === 'invoice' ? l.so_line_id : null;
       if (!link) continue;
       const tbl = kind === 'bill' ? 'purchase_order_lines SET billed_qty = billed_qty + $3 WHERE tenant_id = $1 AND id = $2 AND billed_qty + $3 <= received_qty'
         : 'sales_order_lines SET invoiced_qty = invoiced_qty + $3 WHERE tenant_id = $1 AND id = $2 AND invoiced_qty + $3 <= delivered_qty';
@@ -293,22 +302,20 @@ export const postDocument = (p: Principal, kind: DocKind, id: string, ip?: strin
 
     const control = await controlAccount(c, p.tenantId, kind);
     const no = (await c.query<{ seq: string }>('UPDATE doc_counters SET seq = seq + 1 WHERE tenant_id = $1 AND kind = $2 RETURNING seq', [p.tenantId, kind])).rows[0]!.seq;
-    const label = `${kind === 'invoice' ? 'INV' : 'BILL'}-${no}`;
+    const label = `${PREFIX[kind]}-${no}`;
 
     const je: EntryIn['lines'] = [];
     const side = (amount: bigint, debit: boolean) => ({ debit: debit ? fromUnits(amount) : '0', credit: debit ? '0' : fromUnits(amount) });
-    if (kind === 'invoice') {
-      je.push({ account_id: control, ...side(total, true), memo: `${label} ${party.name}` });
-      for (const l of lines) if (toUnits(l.net) > 0n) je.push({ account_id: l.account_id, ...side(toUnits(l.net), false), memo: l.description.slice(0, 500) });
-      for (const [acct, amt] of taxByAccount) je.push({ account_id: acct, ...side(amt, false), memo: `${label} output tax` });
-    } else {
-      for (const l of lines) if (toUnits(l.net) > 0n) je.push({ account_id: l.account_id, ...side(toUnits(l.net), true), memo: l.description.slice(0, 500) });
-      for (const [acct, amt] of taxByAccount) je.push({ account_id: acct, ...side(amt, true), memo: `${label} input tax` });
-      je.push({ account_id: control, ...side(total, false), memo: `${label} ${party.name}` });
-    }
+    // Invoice: control debit, lines and tax credit. Credit note: the mirror image. Bill: lines and tax debit, control credit. Debit note: the mirror image.
+    const controlDebit = kind === 'invoice' || kind === 'debit_note';
+    const detailDebit = !controlDebit;
+    const taxMemo = isAr(kind) ? 'output tax' : 'input tax';
+    je.push({ account_id: control, ...side(total, controlDebit), memo: `${label} ${party.name}` });
+    for (const l of lines) if (toUnits(l.net) > 0n) je.push({ account_id: l.account_id, ...side(toUnits(l.net), detailDebit), memo: l.description.slice(0, 500) });
+    for (const [acct, amt] of taxByAccount) je.push({ account_id: acct, ...side(amt, detailDebit), memo: `${label} ${taxMemo}` });
     const entryId = await insertEntry(c, p, {
       entry_date: doc.doc_date,
-      description: `${kind === 'invoice' ? 'Invoice' : 'Bill'} ${label} - ${party.name}`.slice(0, 500),
+      description: `${NAME[kind]} ${label} - ${party.name}`.slice(0, 500),
       reference: doc.reference ?? label,
       lines: je,
     }, ip, null, { detail: { document: label } });
@@ -326,12 +333,12 @@ export const voidDocument = (p: Principal, kind: DocKind, id: string, on: string
   withTenant(p.tenantId, async (c) => {
     const d = (await c.query<{ status: string; paid_total: string; journal_entry_id: string | null; doc_no: string }>(
       'SELECT status, paid_total::text, journal_entry_id, doc_no FROM documents WHERE tenant_id = $1 AND kind = $2 AND id = $3 FOR UPDATE', [p.tenantId, kind, id])).rows[0];
-    if (!d) throw notFound(kind === 'invoice' ? 'Invoice' : 'Bill');
+    if (!d) throw notFound(NAME[kind]);
     if (d.status !== 'posted' || !d.journal_entry_id) throw new ApiError(409, 'not_posted', 'Only a posted document can be voided.');
     if (toUnits(d.paid_total) > 0n) throw new ApiError(409, 'has_payments', 'This document has payments against it. Reverse them before voiding.');
     const lines = (await c.query<{ account_id: string; debit: string; credit: string; memo: string | null }>(
       'SELECT account_id, debit::text, credit::text, memo FROM journal_lines WHERE tenant_id = $1 AND entry_id = $2 ORDER BY line_no', [p.tenantId, d.journal_entry_id])).rows;
-    const label = `${kind === 'invoice' ? 'INV' : 'BILL'}-${d.doc_no}`;
+    const label = `${PREFIX[kind]}-${d.doc_no}`;
     const entryId = await insertEntry(c, p, {
       entry_date: on ?? today(),
       description: `Void of ${label}`,
@@ -408,17 +415,21 @@ export const listPayments = (p: Principal, kind: 'receipt' | 'payment', limit: n
 
 // ------------------------------------------------------------------ reports
 /** Open items grouped by days past due, as of a date. Payments dated after the cut-off do not count. */
-export const aging = (p: Principal, kind: DocKind, asOf: string) =>
+export const aging = (p: Principal, kind: 'invoice' | 'bill', asOf: string) =>
   withTenant(p.tenantId, async (c) => {
+    const noteKind = kind === 'invoice' ? 'credit_note' : 'debit_note';
+    // Open invoices (or bills) count what is still owed on the date; open credit (or debit) notes count as negative amounts, not yet due.
     const rows = (await c.query<Record<string, string>>(
       `WITH items AS (
-         SELECT d.party_id, d.due_date,
-                d.total - COALESCE((SELECT sum(a.amount) FROM payment_allocations a JOIN payments y ON y.id = a.payment_id AND y.tenant_id = a.tenant_id
-                                     WHERE a.tenant_id = d.tenant_id AND a.document_id = d.id AND y.pay_date <= $3::date
-                                       AND NOT EXISTS (SELECT 1 FROM payment_voids v WHERE v.tenant_id = y.tenant_id AND v.payment_id = y.id AND v.void_date <= $3::date)), 0) AS owed,
-                ($3::date - d.due_date) AS late
+         SELECT d.party_id,
+                CASE WHEN d.kind = $2 THEN 1 ELSE -1 END * (d.total
+                  - COALESCE((SELECT sum(a.amount) FROM payment_allocations a JOIN payments y ON y.id = a.payment_id AND y.tenant_id = a.tenant_id
+                               WHERE a.tenant_id = d.tenant_id AND a.document_id = d.id AND y.pay_date <= $4::date
+                                 AND NOT EXISTS (SELECT 1 FROM payment_voids v WHERE v.tenant_id = y.tenant_id AND v.payment_id = y.id AND v.void_date <= $4::date)), 0)
+                  - COALESCE((SELECT sum(ca.amount) FROM credit_applications ca WHERE ca.tenant_id = d.tenant_id AND (ca.document_id = d.id OR ca.note_id = d.id) AND ca.applied_on <= $4::date), 0)) AS owed,
+                CASE WHEN d.kind = $2 THEN ($4::date - d.due_date) ELSE 0 END AS late
            FROM documents d
-          WHERE d.tenant_id = $1 AND d.kind = $2 AND d.status = 'posted' AND d.doc_date <= $3::date)
+          WHERE d.tenant_id = $1 AND d.kind IN ($2, $3) AND d.status = 'posted' AND d.doc_date <= $4::date)
        SELECT p.id AS party_id, p.code, p.name,
               COALESCE(sum(owed) FILTER (WHERE late <= 0), 0)::text AS current,
               COALESCE(sum(owed) FILTER (WHERE late BETWEEN 1 AND 30), 0)::text AS d1_30,
@@ -427,7 +438,7 @@ export const aging = (p: Principal, kind: DocKind, asOf: string) =>
               COALESCE(sum(owed) FILTER (WHERE late > 90), 0)::text AS d90_plus,
               sum(owed)::text AS total
          FROM items JOIN parties p ON p.id = items.party_id AND p.tenant_id = $1
-        WHERE owed > 0 GROUP BY p.id, p.code, p.name ORDER BY p.code`, [p.tenantId, kind, asOf])).rows;
+        WHERE owed <> 0 GROUP BY p.id, p.code, p.name HAVING sum(owed) <> 0 ORDER BY p.code`, [p.tenantId, kind, noteKind, asOf])).rows;
     const keys = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90_plus', 'total'] as const;
     const sums: Record<string, bigint> = Object.fromEntries(keys.map((k) => [k, 0n]));
     for (const r of rows) for (const k of keys) sums[k]! += toUnits(r[k]!);
@@ -494,4 +505,44 @@ export const voidPayment = (p: Principal, kind: 'receipt' | 'payment', id: strin
     await c.query('INSERT INTO payment_voids (tenant_id, payment_id, void_date, journal_entry_id, voided_by) VALUES ($1, $2, $3, $4, $5)', [p.tenantId, id, date, entryId, p.userId]);
     await recordAudit(c, { tenantId: p.tenantId, action: `${kind}.voided`, actorUserId: p.userId, entityType: 'payment', entityId: id, ip, detail: { amount: pay.amount } });
     return { id, voided: true, void_date: date, journal_entry_id: entryId };
+  });
+
+// ------------------------------------------------------------------ credit and debit notes
+/**
+ * Use a posted credit note against open invoices (or a debit note against open bills). Both sides already sit in the
+ * control account, so no ledger entry is needed: the application only lowers what is owed on each side.
+ */
+export const applyNote = (p: Principal, kind: 'credit_note' | 'debit_note', id: string, data: { date: string; allocations: { document_id: string; amount: string }[] }, ip?: string) =>
+  withTenant(p.tenantId, async (c) => {
+    const target: DocKind = kind === 'credit_note' ? 'invoice' : 'bill';
+    const note = (await c.query<{ status: string; party_id: string; total: string; paid_total: string; doc_date: string }>(
+      'SELECT status, party_id, total::text, paid_total::text, doc_date::text FROM documents WHERE tenant_id = $1 AND kind = $2 AND id = $3 FOR UPDATE', [p.tenantId, kind, id])).rows[0];
+    if (!note) throw notFound(NAME[kind]);
+    if (note.status !== 'posted') throw new ApiError(409, 'not_posted', 'Only a posted note can be applied.');
+    if (data.date < note.doc_date) throw new ApiError(422, 'invalid_date', 'The application date cannot be before the note date.');
+    const ids = data.allocations.map((a) => a.document_id);
+    if (new Set(ids).size !== ids.length) throw new ApiError(422, 'duplicate_allocation', 'Each document can appear once.');
+    const docs = (await c.query<{ id: string; status: string; party_id: string; total: string; paid_total: string; doc_date: string }>(
+      'SELECT id, status, party_id, total::text, paid_total::text, doc_date::text FROM documents WHERE tenant_id = $1 AND kind = $2 AND id = ANY($3::uuid[]) ORDER BY id FOR UPDATE', [p.tenantId, target, ids])).rows;
+    if (docs.length !== ids.length) throw new ApiError(422, 'invalid_document', `Every allocation must point at an existing ${target}.`);
+    const byId = new Map(docs.map((d) => [d.id, d]));
+    let used = 0n;
+    for (const a of data.allocations) {
+      const d = byId.get(a.document_id)!;
+      const part = toUnits(a.amount);
+      if (part <= 0n) throw new ApiError(422, 'invalid_amount', 'Allocation amounts must be above zero.');
+      if (d.status !== 'posted') throw new ApiError(409, 'not_posted', `You can only apply a note to a posted ${target}.`);
+      if (d.party_id !== note.party_id) throw new ApiError(422, 'party_mismatch', 'The note and the document must belong to the same party.');
+      if (data.date < d.doc_date) throw new ApiError(422, 'invalid_date', 'The application date cannot be before the document date.');
+      if (part > toUnits(d.total) - toUnits(d.paid_total)) throw new ApiError(422, 'over_allocation', 'The allocation exceeds what is still owed on that document.');
+      used += part;
+    }
+    if (used > toUnits(note.total) - toUnits(note.paid_total)) throw new ApiError(422, 'over_allocation', 'That is more than the note has left.');
+    for (const a of data.allocations) {
+      await c.query('INSERT INTO credit_applications (tenant_id, note_id, document_id, amount, applied_on, created_by) VALUES ($1, $2, $3, $4, $5, $6)', [p.tenantId, id, a.document_id, a.amount, data.date, p.userId]);
+      await c.query('UPDATE documents SET paid_total = paid_total + $3 WHERE tenant_id = $1 AND id = $2', [p.tenantId, a.document_id, a.amount]);
+    }
+    await c.query('UPDATE documents SET paid_total = paid_total + $3 WHERE tenant_id = $1 AND id = $2', [p.tenantId, id, fromUnits(used)]);
+    await recordAudit(c, { tenantId: p.tenantId, action: `${kind}.applied`, actorUserId: p.userId, entityType: 'document', entityId: id, ip, detail: { amount: fromUnits(used), documents: ids.length } });
+    return loadDoc(c, p.tenantId, kind, id);
   });
