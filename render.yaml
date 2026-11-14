@@ -10,7 +10,7 @@ services:
     autoDeploy: true
     healthCheckPath: /health
     buildCommand: >-
-      cd frontend && npm ci && npm run build &&
+      cd frontend && npm ci --include=dev && npm run build &&
       cd ../backend && npm ci --include=dev && npm run build
     # Migrations run on every start (pre-deploy commands are not available on the free plan).
     # They are idempotent and use the DIRECT Neon URL.
