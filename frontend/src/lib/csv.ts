@@ -16,3 +16,35 @@ export function downloadCsv(filename: string, rows: string[][]): void {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Reads CSV text into rows of cells. Honours double quotes (a comma or newline inside quotes stays in the cell) and "" as a quote. */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cur = '';
+  let quoted = false;
+  const src = text.replace(/^\ufeff/, '');
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i]!;
+    if (quoted) {
+      if (ch === '"' && src[i + 1] === '"') { cur += '"'; i += 1; } else if (ch === '"') quoted = false; else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { row.push(cur.trim()); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i += 1;
+      row.push(cur.trim()); cur = '';
+      if (row.some((c) => c !== '')) rows.push(row);
+      row = [];
+    } else cur += ch;
+  }
+  row.push(cur.trim());
+  if (row.some((c) => c !== '')) rows.push(row);
+  return rows;
+}
+
+/** First row is the header; its names (lower-cased, spaces to underscores) become the keys. */
+export function csvToObjects(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const [head, ...body] = parseCsv(text);
+  const headers = (head ?? []).map((h) => h.toLowerCase().replace(/\s+/g, '_'));
+  return { headers, rows: body.map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? '']))) };
+}

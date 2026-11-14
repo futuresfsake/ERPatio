@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiError, api, endpoints } from '../api';
+import { parseCsv } from '../lib/csv';
 import { formatApiNum } from '../lib/money';
 import { Dialog, Loading, longDate, Problem, todayIso, useToast } from '../ui';
 
@@ -12,28 +13,13 @@ interface Recon {
   suggestions: { statement_line_id: string; journal_line_id: string; days: number; unique: boolean }[];
 }
 
-/** One CSV row, honouring double quotes so "1,500.00" stays one field. */
-function splitCsv(row: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < row.length; i += 1) {
-    const ch = row[i]!;
-    if (ch === '"') {
-      if (quoted && row[i + 1] === '"') { cur += '"'; i += 1; } else quoted = !quoted;
-    } else if (ch === ',' && !quoted) { out.push(cur.trim()); cur = ''; } else cur += ch;
-  }
-  out.push(cur.trim());
-  return out;
-}
-
 /** date,description,amount[,reference] with an optional header row. Amounts may carry commas, a minus sign or brackets. */
 export function parseStatement(text: string): { date: string; description: string; amount: string; reference?: string }[] {
   const out: { date: string; description: string; amount: string; reference?: string }[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const row = raw.trim();
     if (!row) continue;
-    const cols = splitCsv(row);
+    const cols = parseCsv(row)[0] ?? [];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cols[0] ?? '')) continue; // header or junk
     let amt = (cols[2] ?? '').replace(/,/g, '');
     if (/^\(.*\)$/.test(amt)) amt = '-' + amt.slice(1, -1);

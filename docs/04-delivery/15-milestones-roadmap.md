@@ -55,5 +55,5 @@ See [16 Dependencies](16-dependency-map.md).
 - **M3** core is built: items, stock ledger, purchase and sales orders with receiving and delivery, moving-average costing, valuation that reconciles to the ledger. Locations, three-way match, returns and invoice-from-order remain.
 - **M4** core is built: bills of materials with versions, work orders, materials to work in progress, output at actual cost, close short, WIP that equals the ledger. Routings, scrap and planning remain.
 - **M5** core is built: employees with encrypted pay and identifiers, shifts, attendance, statutory rules as data, payroll runs with separation of duties, posting to the ledger, payment, erasure. Not payroll-ready until an accountant confirms the rates (audit F-53) and the gaps in F-54 are closed.
-- **M6 and M7** are not started.
+- **M6a** is built: executive and inventory dashboards, profitability, caching, CSV import, full export. **M6b** (API keys, webhooks, billing and usage) and **M7** are not started.
 See the [DoD audit](../07-quality/audit-dod.md) for the criterion-by-criterion position.

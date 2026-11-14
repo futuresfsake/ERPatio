@@ -20,6 +20,8 @@ import { stockRouter } from './modules/stock/routes.js';
 import { bankRouter } from './modules/bank/routes.js';
 import { productionRouter } from './modules/production/routes.js';
 import { hcmRouter } from './modules/hcm/routes.js';
+import { biRouter } from './modules/bi/routes.js';
+import { dataRouter } from './modules/data/routes.js';
 import { periodsRouter } from './modules/periods/routes.js';
 import { platformRouter } from './modules/platform/routes.js';
 import { privacyRouter } from './modules/privacy/routes.js';
@@ -53,12 +55,14 @@ export function createApp(): Express {
     cors({
       origin: env.corsOrigins,
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With', 'X-Request-ID'],
       maxAge: 600,
     }),
   );
-  app.use(express.json({ limit: '100kb' }));
+  // Imports carry up to a few thousand rows, so they get a larger body limit; every other route keeps the small one.
+  app.use(`${API}/imports`, express.json({ limit: '4mb' }));
+  app.use((req, res, next) => (req.path.startsWith(`${API}/imports/`) ? next() : express.json({ limit: '100kb' })(req, res, next)));
   app.use(cookieParser());
   app.use(API, (_req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -103,6 +107,8 @@ export function createApp(): Express {
   app.use(API, bankRouter(API));
   app.use(API, productionRouter(API));
   app.use(API, hcmRouter(API));
+  app.use(API, biRouter(API));
+  app.use(API, dataRouter(API));
   app.use(API, draftsRouter(API));
   app.use(API, periodsRouter(API));
   app.use(API, reportsRouter(API));

@@ -97,6 +97,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
 export const setAccessToken = (t: string | null) => {
   accessToken = t;
 };
+/** For a file download, which a plain fetch must authenticate by hand. */
+export const currentAccessToken = (): string | null => accessToken;
 
 export type LoginResult = { kind: 'session'; user: SessionUser } | { kind: 'mfa'; mfaToken: string };
 
