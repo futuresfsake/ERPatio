@@ -50,5 +50,7 @@ See [16 Dependencies](16-dependency-map.md).
 - **M0** is built and tested apart from procedures that need people: the restore drill, the breach tabletop, the threat-model sign-off, legal review (G-21) and the licence decision (G-15). The gate is therefore **not yet passed**.
 - **M1** (people, roles, custom roles, module subscriptions, platform operator) is built and tested.
 - **M2** is partly built: ledger, drafts and approval, periods, trial balance, income statement, balance sheet. Vendor bills, customer invoices, aging, VAT, year-end closing and multi-currency are not started.
-- **M3 to M7** are not started.
+- **M2** also has year-end close and payment void. Credit notes, bank reconciliation, multi-currency and PDF export remain.
+- **M3** core is built: items, stock ledger, purchase and sales orders with receiving and delivery, moving-average costing, valuation that reconciles to the ledger. Locations, three-way match, returns and invoice-from-order remain.
+- **M4 to M7** are not started.
 See the [DoD audit](../07-quality/audit-dod.md) for the criterion-by-criterion position.

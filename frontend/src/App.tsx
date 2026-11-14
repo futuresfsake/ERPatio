@@ -24,6 +24,8 @@ import { TrialBalancePage } from './pages/TrialBalance';
 import { AgingPage, VatPage } from './pages/AgingVat';
 import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
 import { Parties } from './pages/Parties';
+import { Items, StockCard, ValuationPage } from './pages/Items';
+import { OrderDetail, OrderEditor, OrderList } from './pages/Orders';
 
 function Frame() {
   const { user, signOut, can, support, endSupport } = useAuth();
@@ -66,6 +68,11 @@ function Frame() {
               {can('payables:read') && link('/suppliers', 'Suppliers')}
               {can('payables:read') && link('/bills', 'Bills')}
               {can('payables:read') && link('/reports/aging/payables', 'Payables aging')}
+              {can('inventory:read') && <div className="label">Supply chain</div>}
+              {can('inventory:read') && link('/items', 'Items')}
+              {can('orders:read') && link('/purchase-orders', 'Purchase orders')}
+              {can('orders:read') && link('/sales-orders', 'Sales orders')}
+              {can('inventory:read') && link('/reports/stock-valuation', 'Stock valuation')}
               <div className="label">Reports</div>
               {link('/trial-balance', 'Trial balance')}
               {link('/reports/income-statement', 'Income statement')}
@@ -77,7 +84,6 @@ function Frame() {
               {can('audit:read') && link('/audit', 'Audit log')}
               {can('settings:manage') && link('/settings', 'Settings')}
               <div className="label">Later</div>
-              <a className="later" aria-disabled="true">Inventory</a>
               <a className="later" aria-disabled="true">Production</a>
               <a className="later" aria-disabled="true">Payroll</a>
             </>
@@ -162,6 +168,18 @@ export function App() {
           ];
         })}
         <Route path="reports/vat" element={<VatPage />} />
+        <Route path="items" element={<Items />} />
+        <Route path="items/:id" element={<StockCard />} />
+        <Route path="reports/stock-valuation" element={<ValuationPage />} />
+        {(['po', 'so'] as const).flatMap((k) => {
+          const path = k === 'po' ? 'purchase-orders' : 'sales-orders';
+          return [
+            <Route key={`${k}l`} path={path} element={<OrderList kind={k} />} />,
+            <Route key={`${k}n`} path={`${path}/new`} element={<OrderEditor kind={k} />} />,
+            <Route key={`${k}e`} path={`${path}/:id/edit`} element={<OrderEditor kind={k} />} />,
+            <Route key={`${k}d`} path={`${path}/:id`} element={<OrderDetail kind={k} />} />,
+          ];
+        })}
         <Route path="settings" element={<Settings />} />
         <Route path="trial-balance" element={<TrialBalancePage />} />
         <Route path="audit" element={<Audit />} />

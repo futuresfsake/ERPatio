@@ -33,17 +33,17 @@ describe('public demo workspace (ADR-008)', () => {
     const tok = (await loginDemo()).body.access_token as string;
     const acc = await accountIds((await owner.query("SELECT id FROM tenants WHERE slug = $1", [DEMO_SLUG])).rows[0].id);
     await api.post('/api/v1/journal-entries').set(auth(tok)).send(entry(acc));
-    expect((await api.get('/api/v1/journal-entries').set(auth(tok))).body.total).toBe(19);
+    expect((await api.get('/api/v1/journal-entries').set(auth(tok))).body.total).toBe(21);
 
     expect(await seedDemo(true)).toMatch(/ready/);
     const tok2 = (await loginDemo()).body.access_token as string;
-    expect((await api.get('/api/v1/journal-entries').set(auth(tok2))).body.total).toBe(18);
+    expect((await api.get('/api/v1/journal-entries').set(auth(tok2))).body.total).toBe(20);
     // append-only triggers are back in force after the maintenance reset
     await expect(owner.query('DELETE FROM journal_entries')).rejects.toThrow(/append-only/);
   });
 
   it('caps the number of entries visitors can add', async () => {
-    process.env.DEMO_MAX_ENTRIES = '18';
+    process.env.DEMO_MAX_ENTRIES = '20';
     resetEnvCache();
     const tok = (await loginDemo()).body.access_token as string;
     const acc = await accountIds((await owner.query("SELECT id FROM tenants WHERE slug = $1", [DEMO_SLUG])).rows[0].id);
