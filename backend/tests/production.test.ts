@@ -120,7 +120,10 @@ describe('materials, output and cost', () => {
     expect(a.order.wip).toBe('120.0000');
     expect(a.order.status).toBe('released');
     expect(a.unit_cost).toBe('6.0000');
-    const b = (await complete(w.id, '20').expect(200)).body;
+    const mid = (await complete(w.id, '10').expect(200)).body; // 10 of the 20 still to make: half of the 120 left, not a third
+    expect(mid.order.wip).toBe('60.0000');
+    expect(mid.unit_cost).toBe('6.0000');
+    const b = (await complete(w.id, '10').expect(200)).body;
     expect(b.order.wip).toBe('0.0000');
     expect(b.order.status).toBe('completed');
     expect((await item(bread)).value_on_hand).toBe('180.0000');

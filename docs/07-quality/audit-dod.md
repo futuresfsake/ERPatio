@@ -1,10 +1,10 @@
-# Definition-of-Done audit: M0, M1 and the finance slice
+# Definition-of-Done audit: ERPatio M0 to M7 (foundation to hardening)
 
 | | |
 |---|---|
 | **Date** | 2026-11-14 |
-| **Audited** | Branch `feat/m0-complete`, cut from `main` at `25693e8` (the squash-merge of PR #1). Work is uncommitted until the single push |
-| **Compared with** | `main` (PR #1: foundation, ledger, drafts, periods, statements) |
+| **Audited** | `main` after the merge of PR #17 (M6b), plus the M7 hardening branch. One squash commit per milestone slice, PRs #1 to #17 |
+| **Compared with** | The previous audit of 2026-11-14 (M0, M1 and the first finance slice) |
 | **How it was run** | Windows 11, Node 22.14, npm 10.9. PostgreSQL 17.4 on a throwaway local cluster with an owner role that mimics Neon's (not superuser, `CREATEROLE`, `BYPASSRLS`). No mocks: tests talk to real PostgreSQL |
 | **Not audited** | See the list under the verdict |
 | **Definition of Done used** | [`04-delivery/20-definition-of-done.md`](../04-delivery/20-definition-of-done.md), the stories in `04-delivery/stories/` (EPIC-01, EPIC-02 incl. M1, EPIC-06, and the EPIC-03 stories built), and the M0 gate in [`15-milestones-roadmap.md`](../04-delivery/15-milestones-roadmap.md) |
@@ -25,14 +25,16 @@ There is no Jira ticket, so the criteria come from the repo's own stories. Story
 
 **Approved as the foundation to build on. Not approved for production or for real customer data.**
 
+**Update after M7 (hardening):** test strength was checked (`scripts/break-it.mjs`: 37 breaks, all caught after four weak tests were strengthened), every protected route is checked by a generated authorization matrix, 32 screens were driven in a real browser at desktop and phone width (`e2e/smoke.mjs`, now a CI job), a backup and restore drill passes on a 100,000-entry ledger with row counts, ledger fingerprint and row-level security intact, and the slowest queries were measured and indexed (3 to 15 times faster). See "Hardening evidence" below and [`pilot-readiness.md`](../06-operations/pilot-readiness.md).
+
 What was built since the first audit: the rest of M0 (self-service sign-up, e-mail confirmation, password reset, two-factor sign-in, sessions list, field-level encryption, data export and erasure, retention, security events), all of M1 (people and roles administration, custom roles, module subscriptions, platform-operator tools with read-only support sessions), plus two runbooks. **M2's receivables and payables slice is now built (customers, suppliers, invoices, bills, receipts, payments, tax codes, aging, tax report; migration 006, 24 tests). Still open in M2: year-end closing, multi-currency, payment reversal and credit notes, bank reconciliation, PDF export and M3 to M7 (supply chain, production, HR and payroll, dashboards and platform, hardening) are not started.**
 
 Why it is still not ready:
 1. **Not deployed.** No live URL. Nothing has run on real Neon or Render (F-01, F-02).
 2. **The M0 gate is still open.** Not done: restore drill, breach tabletop, security-reviewer sign-off on the threat model, legal review of the privacy notice (G-21), licence decision (G-15).
 3. **No real mail provider.** E-mail is held in memory unless `SMTP_URL` is set; production refuses `SIGNUP_ENABLED` without one. Sign-up, invitations and password reset have never sent a real message (F-30).
-4. **Test strength is unproven.** The break-it check has still not been run (F-12).
-5. **No end-to-end browser tests** for the React screens (F-11).
+4. **Payroll is not usable for real pay** until an accountant confirms the statutory rates and the missing pieces are built (F-53, F-54).
+5. **No outside penetration test**, no load test on real hosting, and the first real deployment will find things only a deployment finds.
 
 What is solid, with evidence: tenant isolation by the database, tested by crossing it; an unbalanced, edited or out-of-period ledger entry is impossible even by writing SQL; every route must declare a guard; sign-in does not reveal which accounts exist; refresh-token theft is detected without punishing two tabs; two-factor codes cannot be replayed; encrypted fields are ciphertext in the database; erasure leaves the books unchanged; nobody can grant permissions they do not hold or remove the last administrator.
 
@@ -370,8 +372,8 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-08 | ~~CI never ran~~ **Resolved:** green on PR #1. Actions are pinned to major tags, not commit SHAs; the checks are not set as *required* in branch protection | Low | Pin by SHA; require the checks |
 | F-09 | Backup retention unknown; restore drill not done | Medium | Check the Neon plan; run the drill |
 | F-10 | 3 moderate advisories in `node-pg-migrate` (dev-time, behind the CI gate) | Low | Accept; watch for a fix |
-| F-11 | No browser or end-to-end tests; the React pages have no tests | Medium | Add Playwright |
-| F-12 | Break-it check not run: test strength unproven | Medium | Run it next |
+| F-11 | ~~No browser or end-to-end tests~~ **Resolved for smoke**: 32 screens at two widths plus three ledger-agreement checks, in CI. Behaviour (create an invoice end to end, edit and cancel flows) is still tested only through the API | Low | Add flow tests for the critical paths |
+| F-12 | ~~Break-it check not run~~ **Resolved**: 37 breaks, all caught; the first run missed 7 (1 duplicated guard by design, 2 equivalent mutations replaced, 4 weak tests strengthened) | n/a | Re-run when a critical rule changes |
 | F-13 | Permissions live in the access token: role, deactivation and suspension reach an open session within 15 minutes (refresh is refused immediately) | Low | Accepted (ADR-004) |
 | F-14 | Renaming or deactivating an account is last-write-wins | Low | Version check when editing grows |
 | F-15 | Client IP comes from `X-Forwarded-For` with `TRUST_PROXY=1`; the limiter is per-process | Low | Revisit if hosting changes or scales out |
@@ -382,7 +384,7 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-20 | No test asserts that no response contains `password_hash` | Low | Add a test that walks every response |
 | F-21 | The HTML prototype loads fonts from Google Fonts and shows only the first 8 screens | Low | Fine for a design file; refresh it before showing it as current |
 | F-22 | JWT key rotation and HSTS have no automated test | Low | Add one test each |
-| F-23 | Motion, new screens and the mobile-first stylesheet were reviewed by type-check, lint, build and screenshots only; animations not watched at full motion | Low | Review in a browser; add Playwright |
+| F-23 | ~~Screens not seen in a browser~~ **Resolved for layout**: all screens load and fit a 390 px phone and a desktop with no sideways scroll or script errors. Animations were run with reduced motion and not judged by eye | Low | Review motion by eye |
 | F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
 | F-25 | ~~No year-end closing~~ **Resolved**. Still missing: comparatives, PDF export, multi-currency, credit notes, bank reconciliation | Medium | Rest of M2 |
 | F-35 | Invoices, bills and receipts are posted directly; they bypass the optional journal approval (approver is not the author) | Medium | Add approval to documents if a customer requires it |
@@ -407,12 +409,16 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-62 | API-key rate limits and the last-used time are kept per process; several instances each allow the full budget | Low | Shared counter if scaled out |
 | F-63 | No payment collection, invoicing of the subscription, proration or dunning; the plan is set by the operator | Medium | Integrate a payment provider before charging customers |
 | F-64 | Webhook delivery has no per-tenant concurrency or size controls and no replay button | Low | Add if a customer needs it |
+| F-65 | A trial balance, balance sheet or income statement for all time sums every line of the ledger. After the line-date index it takes about 0.3 s at 100,000 entries and grows roughly linearly (about 3 s at a million) | Medium | Add monthly balance roll-ups if a customer reaches that size |
+| F-66 | The journal list pages with OFFSET: a very deep page (50,000 in) takes about 0.25 s | Low | Keyset paging if needed |
+| F-67 | The browser smoke test does not check accessibility (contrast, focus order, screen-reader names) | Medium | Add an automated accessibility check and a manual pass |
+| F-68 | The restore drill proves the dump is complete and restorable on local PostgreSQL; a restore from a Neon backup or point-in-time branch has not been done | High | Do it on the real project (pilot-readiness item 2) |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
-| F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
+| F-46 | ~~New stock screens unchecked in a browser~~ **Resolved** by the smoke test (F-11) | n/a | none |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |
 | F-37 | Customer and supplier contact details (email, phone) are not yet in the data-subject export or the erasure routine | Medium | Extend DSAR and erasure to parties before any real customer data is entered |
 | F-38 | `npm audit` reports 3 moderate findings in `glob` and `minimatch`, pulled in by `node-pg-migrate` (a deploy-time tool, not on the request path) | Low | Update when the tool releases a fix; Dependabot is watching |
-| F-39 | The new pages (invoices, bills, aging, tax report) were checked by type-check, lint and build only, not in a browser | Low | Run them in the browser; add Playwright (F-11) |
+| F-39 | ~~New finance pages unchecked in a browser~~ **Resolved** by the smoke test (F-11) | n/a | none |
 | F-40 | Tax codes have no effective dates, withholding, or per-line tax-inclusive pricing; amounts are PHP only | Low | Multi-currency and withholding in the next M2 step |
 | F-26 | Approval is single-level and per workspace | Low | Revisit if a customer needs more |
 | F-27 | A draft can be saved with a date in a closed period; blocked at submit and post | Low | Warn in the editor |
@@ -452,3 +458,13 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 Method: read each diff (workflow files only, no other change), confirmed the publisher, checked CI on the PR. Not done: workflows reference actions by version tag, not by commit SHA, so a moved tag would be picked up (finding F-41). The four action bumps were applied in one commit with the next change; Dependabot closes its PRs when the change lands.
 
 | F-41 | GitHub Actions are pinned to version tags, not commit SHAs | Low | Pin to SHAs and let Dependabot update them |
+
+## Hardening evidence (M7)
+
+| Check | How | Result |
+|---|---|---|
+| Authorization for every route | `tests/authz-matrix.test.ts` builds its list from the route table: every protected operation with no token, as a user holding no permission, and as a viewer | 185 protected operations: 401 without a token, 403 for no permission, and exactly the viewer's own permissions allowed; no server error anywhere |
+| Test strength | `scripts/break-it.mjs` breaks one rule at a time (balance, rounding, over-allocation, aging edges, stock cost, returns, three-way match, production costing, year-end sign and once-only, bank matching, payroll tax and contributions and separation of duties, import all-or-nothing, export secrets, cache version, API-key limits, webhook address and signature, plan caps) | 37 of 37 caught. First run caught 31 of 38: one was a duplicated guard whose database twin gives the same answer (removed with a note), two were equivalent mutations (replaced), four exposed weak tests (aging edge days, second year-end close code, forbidden key permissions, subledger tests missing from the money-parse check), which were strengthened |
+| Backup and restore | `scripts/restore-drill.sh` on a 100,000-entry, 200,000-line ledger | Dump 2 s, restore 10 s. Row counts, debit and credit totals and an MD5 fingerprint of every ledger line match; 52 tables with forced row-level security, 53 policies and 19 triggers survive |
+| Performance | `scripts/perf-check.ts` on 100,000 entries | Before the index: trial balance 698 ms, income statement 343 ms, balance sheet 486 ms, journal list 146 ms, executive dashboard 405 ms. After copying the entry date onto each line with a covering index, and counting entries from the gapless counter: 328, 128, 240, 9 and 102 ms. Receivables aging 30 ms, stock valuation 20 ms, cached dashboard 1 ms |
+| Browser | `e2e/smoke.mjs` in Edge locally and Chrome in CI | 32 screens at 1280 px and 390 px: no script error, no failed request, real content, no sideways scroll. Trial balance, stock valuation and payroll liabilities each state that they agree with the ledger. It caught three real faults: the demo lacked the dashboards module, the demo's stock valuation disagreed with the ledger because sample journal entries posted to inventory by hand, and a database connection timeout under a burst (not reproduced once the host was `127.0.0.1`, which points at slow `localhost` resolution on Windows, not at the code) |

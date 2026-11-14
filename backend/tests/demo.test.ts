@@ -18,7 +18,7 @@ const loginDemo = () => api.post('/api/v1/auth/login').send({ workspace: DEMO_SL
 
 describe('public demo workspace (ADR-008)', () => {
   it('seeds a balanced ledger and lets the published credentials sign in', async () => {
-    expect(await seedDemo(false)).toMatch(/ready with 14 journal entries/);
+    expect(await seedDemo(false)).toMatch(/ready with 11 journal entries/);
     const login = await loginDemo();
     expect(login.status).toBe(200);
     expect(login.body.user.roles).toEqual(['DemoUser']);
@@ -33,17 +33,17 @@ describe('public demo workspace (ADR-008)', () => {
     const tok = (await loginDemo()).body.access_token as string;
     const acc = await accountIds((await owner.query("SELECT id FROM tenants WHERE slug = $1", [DEMO_SLUG])).rows[0].id);
     await api.post('/api/v1/journal-entries').set(auth(tok)).send(entry(acc));
-    expect((await api.get('/api/v1/journal-entries').set(auth(tok))).body.total).toBe(25);
+    expect((await api.get('/api/v1/journal-entries').set(auth(tok))).body.total).toBe(22);
 
     expect(await seedDemo(true)).toMatch(/ready/);
     const tok2 = (await loginDemo()).body.access_token as string;
-    expect((await api.get('/api/v1/journal-entries').set(auth(tok2))).body.total).toBe(24);
+    expect((await api.get('/api/v1/journal-entries').set(auth(tok2))).body.total).toBe(21);
     // append-only triggers are back in force after the maintenance reset
     await expect(owner.query('DELETE FROM journal_entries')).rejects.toThrow(/append-only/);
   });
 
   it('caps the number of entries visitors can add', async () => {
-    process.env.DEMO_MAX_ENTRIES = '24';
+    process.env.DEMO_MAX_ENTRIES = '21';
     resetEnvCache();
     const tok = (await loginDemo()).body.access_token as string;
     const acc = await accountIds((await owner.query("SELECT id FROM tenants WHERE slug = $1", [DEMO_SLUG])).rows[0].id);

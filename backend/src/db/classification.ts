@@ -26,6 +26,7 @@ export const CLASSIFICATION: Record<string, Classification> = Object.fromEntries
   ...t('journal_entries', 'internal', ['id', 'tenant_id', 'reverses_entry_id', 'created_by', 'created_at']),
   ...t('journal_entries', 'confidential', ['entry_no', 'entry_date', 'description', 'reference']),
   ...t('journal_lines', 'internal', ['id', 'tenant_id', 'entry_id', 'line_no', 'account_id']),
+  ...t('journal_lines', 'internal', ['entry_date', 'closing']),
   ...t('journal_lines', 'confidential', ['debit', 'credit', 'memo']),
   ...t('journal_entries', 'internal', ['posted_by', 'approved_by']),
   ...t('users', 'internal', ['totp_enabled', 'totp_last_step', 'password_changed_at', 'erased_at']),

@@ -59,7 +59,7 @@ export const reconciliation = (p: Principal, accountId: string, asOf: string) =>
         WHERE l.tenant_id = $1 AND l.account_id = $2 AND e.entry_date <= $3::date AND NOT EXISTS (SELECT 1 FROM bank_matches m WHERE m.tenant_id = l.tenant_id AND m.journal_line_id = l.id)
         ORDER BY e.entry_date, e.entry_no, l.line_no`, [p.tenantId, accountId, asOf])).rows;
     const totals = (await c.query<{ gl: string | null; st: string | null; matched: string }>(
-      `SELECT (SELECT sum(l.debit - l.credit) FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.entry_date <= $3::date WHERE l.tenant_id = $1 AND l.account_id = $2)::text AS gl,
+      `SELECT (SELECT sum(l.debit - l.credit) FROM journal_lines l WHERE l.tenant_id = $1 AND l.account_id = $2 AND l.entry_date <= $3::date)::text AS gl,
               (SELECT sum(amount) FROM bank_statement_lines WHERE tenant_id = $1 AND account_id = $2 AND line_date <= $3::date)::text AS st,
               (SELECT count(*) FROM bank_matches m JOIN bank_statement_lines s ON s.id = m.statement_line_id AND s.tenant_id = m.tenant_id WHERE m.tenant_id = $1 AND s.account_id = $2 AND s.line_date <= $3::date)::text AS matched`,
       [p.tenantId, accountId, asOf])).rows[0]!;

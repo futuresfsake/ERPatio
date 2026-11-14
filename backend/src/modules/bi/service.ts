@@ -23,8 +23,7 @@ async function plBetween(p: Principal, from: string, to: string) {
     const r = (await c.query<{ rev: string | null; exp: string | null }>(
       `SELECT sum(CASE WHEN a.type = 'revenue' THEN l.credit - l.debit END)::text AS rev, sum(CASE WHEN a.type = 'expense' THEN l.debit - l.credit END)::text AS exp
          FROM journal_lines l JOIN accounts a ON a.id = l.account_id AND a.tenant_id = l.tenant_id
-         JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.entry_date BETWEEN $2::date AND $3::date AND e.closing_year IS NULL
-        WHERE l.tenant_id = $1 AND a.type IN ('revenue', 'expense')`, [p.tenantId, from, to])).rows[0]!;
+        WHERE l.tenant_id = $1 AND l.entry_date BETWEEN $2::date AND $3::date AND NOT l.closing AND a.type IN ('revenue', 'expense')`, [p.tenantId, from, to])).rows[0]!;
     const rev = toUnits(r.rev ?? '0'); const exp = toUnits(r.exp ?? '0');
     return { revenue: fromUnits(rev), expenses: fromUnits(exp), net_income: fromUnits(rev - exp) };
   });
@@ -39,8 +38,8 @@ export const executive = async (p: Principal) => {
     const out: Record<string, unknown> = { as_of: t };
     out.cash = await withTenant(p.tenantId, async (c) => {
       const r = (await c.query<{ b: string | null }>(
-        `SELECT sum(l.debit - l.credit)::text AS b FROM journal_lines l JOIN accounts a ON a.id = l.account_id AND a.tenant_id = l.tenant_id JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.entry_date <= $2::date
-          WHERE l.tenant_id = $1 AND a.type = 'asset' AND a.code LIKE '10%'`, [p.tenantId, t])).rows[0]!;
+        `SELECT sum(l.debit - l.credit)::text AS b FROM journal_lines l JOIN accounts a ON a.id = l.account_id AND a.tenant_id = l.tenant_id 
+          WHERE l.tenant_id = $1 AND l.entry_date <= $2::date AND a.type = 'asset' AND a.code LIKE '10%'`, [p.tenantId, t])).rows[0]!;
       return { balance: fromUnits(toUnits(r.b ?? '0')) };
     });
     out.month = await plBetween(p, monthStart, t);

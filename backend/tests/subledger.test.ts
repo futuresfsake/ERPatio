@@ -213,6 +213,14 @@ describe('aging, VAT and the ledger', () => {
     expect(r.reconciles).toBe(true);
   });
 
+  it('puts an item that is 30 days late in 1-30 and 31 days late in 31-60', async () => {
+    await post('invoices', (await draft('invoices', inv({ doc_date: '2026-10-01', due_date: '2026-10-01' }))).id); // 30 late on 2026-10-31
+    await post('invoices', (await draft('invoices', inv({ doc_date: '2026-09-30', due_date: '2026-09-30' }))).id); // 31 late on 2026-10-31
+    const r = (await api.get('/api/v1/reports/aging/receivables').query({ as_of: '2026-10-31' }).set(auth(vic)).expect(200)).body;
+    expect(r.rows[0].d1_30).toBe('1120.0000');
+    expect(r.rows[0].d31_60).toBe('1120.0000');
+  });
+
   it('payments dated after the cut-off do not reduce an earlier aging', async () => {
     const p = await post('invoices', (await draft('invoices', inv())).id);
     await api.post('/api/v1/receipts').set(auth(amy)).send({ party_id: cust, pay_date: '2026-12-10', bank_account_id: acc['1010'], allocations: [{ document_id: p.id, amount: '1120.00' }] }).expect(201);

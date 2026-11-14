@@ -72,7 +72,9 @@ describe('year-end close', () => {
     expect((await api.post('/api/v1/fiscal-years/2026/close').set(auth(fin))).status).toBe(409);
     await owner.query('DELETE FROM journal_drafts WHERE tenant_id = $1', [t.tenantId]);
     await api.post('/api/v1/fiscal-years/2026/close').set(auth(fin)).expect(201);
-    expect((await api.post('/api/v1/fiscal-years/2026/close').set(auth(fin))).status).toBe(409);
+    const again = await api.post('/api/v1/fiscal-years/2026/close').set(auth(fin));
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe('year_closed');
     expect((await api.post('/api/v1/fiscal-years/2031/close').set(auth(fin))).status).toBe(404);
   });
 

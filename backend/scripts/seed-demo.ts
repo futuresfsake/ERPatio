@@ -30,15 +30,12 @@ export const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? 'ERPatio-Demo-2026';
 const ENTRIES: [number, string, string, [string, string, string][]][] = [
   [90, 'Owner capital investment', 'CAP-001', [['1010', '1000000', '0'], ['3000', '0', '1000000']]],
   [88, 'Purchase of delivery van', 'FA-001', [['1500', '250000', '0'], ['1010', '0', '250000']]],
-  [85, 'Inventory purchase on credit', 'PO-1001', [['1200', '400000', '0'], ['2000', '0', '400000']]],
   [60, 'Sale on account - Santos Hardware', 'INV-2001', [['1100', '336000', '0'], ['4000', '0', '300000'], ['2100', '0', '36000']]],
-  [60, 'Cost of goods sold - INV-2001', 'INV-2001', [['5000', '180000', '0'], ['1200', '0', '180000']]],
   [45, 'Customer payment - Santos Hardware', 'OR-3001', [['1010', '336000', '0'], ['1100', '0', '336000']]],
   [40, 'Supplier payment - PO-1001', 'CHK-0101', [['2000', '200000', '0'], ['1010', '0', '200000']]],
   [30, 'Office rent', 'RENT-10', [['6000', '45000', '0'], ['1010', '0', '45000']]],
   [30, 'Payroll', 'PAY-10', [['6100', '120000', '0'], ['1010', '0', '120000']]],
   [20, 'Cash sale - walk-in', 'INV-2002', [['1000', '112000', '0'], ['4000', '0', '100000'], ['2100', '0', '12000']]],
-  [20, 'Cost of goods sold - INV-2002', 'INV-2002', [['5000', '60000', '0'], ['1200', '0', '60000']]],
   [10, 'Electricity and water', 'UTIL-10', [['6200', '8500', '0'], ['1010', '0', '8500']]],
   [5, 'Office supplies', 'PC-0005', [['6300', '3200', '0'], ['1000', '0', '3200']]],
   [2, 'Cash deposit to bank', 'DEP-0002', [['1010', '100000', '0'], ['1000', '0', '100000']]],
@@ -72,7 +69,7 @@ export async function seedDemo(reset: boolean): Promise<string> {
       for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines', 'bom_lines', 'payslips', 'payroll_adjustments', 'payroll_runs']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);
     }
-    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain', 'production', 'hcm'] });
+    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain', 'production', 'hcm', 'bi'] });
     userId = await createUser(c, { tenantId, email: DEMO_EMAIL, fullName: 'Demo Accountant', password: DEMO_PASSWORD, roles: [DEMO_ROLE[0]] });
     // A second person who can approve payroll, so the sample run was approved by someone other than its preparer. Nobody can sign in as them.
     approverId = await createUser(c, { tenantId, email: 'payroll-approver@erpatio.app', fullName: 'Payroll Approver', password: randomBytes(24).toString('hex'), roles: ['PayrollApprover'] });

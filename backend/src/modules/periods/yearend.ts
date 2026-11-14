@@ -19,8 +19,7 @@ async function plan(c: PoolClient, tenantId: string, year: number) {
     `SELECT a.id AS account_id, a.code, a.name, a.type, sum(l.debit)::text AS d, sum(l.credit)::text AS c
        FROM accounts a
        JOIN journal_lines l ON l.account_id = a.id AND l.tenant_id = a.tenant_id
-       JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id
-        AND e.entry_date BETWEEN make_date($2, 1, 1) AND make_date($2, 12, 31) AND e.closing_year IS NULL
+        AND l.entry_date BETWEEN make_date($2, 1, 1) AND make_date($2, 12, 31) AND NOT l.closing
       WHERE a.tenant_id = $1 AND a.type IN ('revenue', 'expense')
       GROUP BY a.id, a.code, a.name, a.type ORDER BY a.code`, [tenantId, year])).rows;
   // Debit-positive balance per account; closing flips each to zero.

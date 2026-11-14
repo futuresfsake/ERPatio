@@ -247,8 +247,7 @@ export const wipReport = (p: Principal, asOf: string) =>
     for (const r of rows) total += toUnits(r.wip);
     const gl = (await c.query<{ bal: string | null }>(
       `SELECT sum(l.debit - l.credit)::text AS bal FROM journal_lines l
-         JOIN journal_entries e ON e.id = l.entry_id AND e.tenant_id = l.tenant_id AND e.entry_date <= $2::date
-        WHERE l.tenant_id = $1 AND l.account_id = (SELECT wip_account_id FROM tenant_settings WHERE tenant_id = $1)`, [p.tenantId, asOf])).rows[0]?.bal ?? '0';
+        WHERE l.tenant_id = $1 AND l.entry_date <= $2::date AND l.account_id = (SELECT wip_account_id FROM tenant_settings WHERE tenant_id = $1)`, [p.tenantId, asOf])).rows[0]?.bal ?? '0';
     const variance = toUnits(gl) - total;
     return { as_of: asOf, rows, total_wip: fromUnits(total), ledger_balance: fromUnits(toUnits(gl)), variance: fromUnits(variance < 0n ? -variance : variance), variance_sign: variance < 0n ? '-' : '+', reconciles: variance === 0n };
   });

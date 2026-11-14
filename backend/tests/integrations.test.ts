@@ -75,8 +75,9 @@ describe('API keys', () => {
     }
     expect((await api.post('/api/v1/api-keys').set(auth(adm)).send({ name: 'bad', permissions: ['nope:nope'] })).status).toBe(422);
     const k = await mkKey(['accounts:read']);
-    await owner.query("UPDATE api_keys SET permissions = ARRAY['accounts:read', 'users:manage', 'integrations:manage'] WHERE id = $1", [k.id]);
-    expect((await api.get('/api/v1/users').set(auth(k.key))).status).toBe(403);
+    await owner.query("UPDATE api_keys SET permissions = ARRAY['accounts:read', 'users:manage', 'data:export', 'payroll:read', 'integrations:manage'] WHERE id = $1", [k.id]);
+    expect((await api.get('/api/v1/export').set(auth(k.key))).status).toBe(403); // the creator may export; a key may not
+    expect((await api.get('/api/v1/payroll-runs').set(auth(k.key))).status).toBe(403);
     expect((await api.get('/api/v1/api-keys').set(auth(k.key))).status).toBe(403);
     expect((await api.get('/api/v1/accounts').set(auth(k.key))).status).toBe(200);
   });
