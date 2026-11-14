@@ -179,8 +179,9 @@ async function loadDoc(c: PoolClient, tenantId: string, kind: DocKind, id: strin
        LEFT JOIN tax_codes t ON t.id = l.tax_code_id AND t.tenant_id = l.tenant_id
       WHERE l.tenant_id = $1 AND l.document_id = $2 ORDER BY l.line_no`, [tenantId, id])).rows;
   const payments = (await c.query(
-    `SELECT a.payment_id, y.pay_date, y.method, y.reference, a.amount::text FROM payment_allocations a
+    `SELECT a.payment_id, y.pay_date, y.method, y.reference, a.amount::text, (v.payment_id IS NOT NULL) AS voided FROM payment_allocations a
        JOIN payments y ON y.id = a.payment_id AND y.tenant_id = a.tenant_id
+       LEFT JOIN payment_voids v ON v.payment_id = y.id AND v.tenant_id = y.tenant_id
       WHERE a.tenant_id = $1 AND a.document_id = $2 ORDER BY y.pay_date, y.created_at`, [tenantId, id])).rows;
   return { ...d, lines, payments };
 }
@@ -381,8 +382,9 @@ export const listPayments = (p: Principal, kind: 'receipt' | 'payment', limit: n
   withTenant(p.tenantId, async (c) => {
     const total = Number((await c.query<{ n: string }>('SELECT count(*) AS n FROM payments WHERE tenant_id = $1 AND kind = $2', [p.tenantId, kind])).rows[0]?.n ?? 0);
     const rows = (await c.query(
-      `SELECT y.id, y.kind, y.party_id, p.name AS party_name, y.pay_date, y.amount::text, y.method, y.reference, y.journal_entry_id
+      `SELECT y.id, y.kind, y.party_id, p.name AS party_name, y.pay_date, y.amount::text, y.method, y.reference, y.journal_entry_id, (v.payment_id IS NOT NULL) AS voided
          FROM payments y JOIN parties p ON p.id = y.party_id AND p.tenant_id = y.tenant_id
+         LEFT JOIN payment_voids v ON v.payment_id = y.id AND v.tenant_id = y.tenant_id
         WHERE y.tenant_id = $1 AND y.kind = $2 ORDER BY y.pay_date DESC, y.created_at DESC LIMIT $3 OFFSET $4`, [p.tenantId, kind, limit, offset])).rows;
     return { items: rows, total, limit, offset };
   });
@@ -395,7 +397,8 @@ export const aging = (p: Principal, kind: DocKind, asOf: string) =>
       `WITH items AS (
          SELECT d.party_id, d.due_date,
                 d.total - COALESCE((SELECT sum(a.amount) FROM payment_allocations a JOIN payments y ON y.id = a.payment_id AND y.tenant_id = a.tenant_id
-                                     WHERE a.tenant_id = d.tenant_id AND a.document_id = d.id AND y.pay_date <= $3::date), 0) AS owed,
+                                     WHERE a.tenant_id = d.tenant_id AND a.document_id = d.id AND y.pay_date <= $3::date
+                                       AND NOT EXISTS (SELECT 1 FROM payment_voids v WHERE v.tenant_id = y.tenant_id AND v.payment_id = y.id AND v.void_date <= $3::date)), 0) AS owed,
                 ($3::date - d.due_date) AS late
            FROM documents d
           WHERE d.tenant_id = $1 AND d.kind = $2 AND d.status = 'posted' AND d.doc_date <= $3::date)
@@ -444,4 +447,34 @@ export const vatReport = (p: Principal, from: string, to: string) =>
       else inp += toUnits(r.tax);
     }
     return { from, to, rows, output_tax: fromUnits(out), input_tax: fromUnits(inp), payable: fromUnits(out - inp) };
+  });
+
+/** Undo a receipt or payment: the ledger entry is reversed, every document gets its balance back, the payment stays on record. */
+export const voidPayment = (p: Principal, kind: 'receipt' | 'payment', id: string, on: string | undefined, ip?: string) =>
+  withTenant(p.tenantId, async (c) => {
+    const pay = (await c.query<{ journal_entry_id: string; pay_date: string; amount: string }>(
+      'SELECT journal_entry_id, pay_date::text, amount::text FROM payments WHERE tenant_id = $1 AND kind = $2 AND id = $3', [p.tenantId, kind, id])).rows[0];
+    if (!pay) throw notFound(kind === 'receipt' ? 'Receipt' : 'Payment');
+    // No row lock on the payment (the app role cannot update it): two simultaneous voids collide on the primary key of
+    // payment_voids and on the one-reversal-per-entry index, and the loser rolls back whole.
+    if ((await c.query('SELECT 1 FROM payment_voids WHERE tenant_id = $1 AND payment_id = $2', [p.tenantId, id])).rowCount)
+      throw new ApiError(409, 'already_voided', 'This payment has already been voided.');
+    const date = on ?? today();
+    if (date < pay.pay_date) throw new ApiError(422, 'invalid_date', 'The void date cannot be before the payment date.');
+    const lines = (await c.query<{ account_id: string; debit: string; credit: string; memo: string | null }>(
+      'SELECT account_id, debit::text, credit::text, memo FROM journal_lines WHERE tenant_id = $1 AND entry_id = $2 ORDER BY line_no', [p.tenantId, pay.journal_entry_id])).rows;
+    const entryId = await insertEntry(c, p, {
+      entry_date: date, description: `Void of ${kind}`, reference: `VOID-${kind}`,
+      lines: lines.map((l) => ({ account_id: l.account_id, debit: l.credit, credit: l.debit, memo: l.memo ?? undefined })),
+    }, ip, pay.journal_entry_id, { detail: { void: true, payment: kind } });
+    // Lock the documents in a fixed order, then give each its balance back.
+    const allocs = (await c.query<{ document_id: string; amount: string }>(
+      'SELECT document_id, amount::text FROM payment_allocations WHERE tenant_id = $1 AND payment_id = $2 ORDER BY document_id', [p.tenantId, id])).rows;
+    for (const a of allocs) {
+      await c.query('SELECT 1 FROM documents WHERE tenant_id = $1 AND id = $2 FOR UPDATE', [p.tenantId, a.document_id]);
+      await c.query('UPDATE documents SET paid_total = paid_total - $3 WHERE tenant_id = $1 AND id = $2', [p.tenantId, a.document_id, a.amount]);
+    }
+    await c.query('INSERT INTO payment_voids (tenant_id, payment_id, void_date, journal_entry_id, voided_by) VALUES ($1, $2, $3, $4, $5)', [p.tenantId, id, date, entryId, p.userId]);
+    await recordAudit(c, { tenantId: p.tenantId, action: `${kind}.voided`, actorUserId: p.userId, entityType: 'payment', entityId: id, ip, detail: { amount: pay.amount } });
+    return { id, voided: true, void_date: date, journal_entry_id: entryId };
   });

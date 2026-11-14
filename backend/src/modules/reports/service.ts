@@ -31,7 +31,7 @@ export const incomeStatement = (p: Principal, from: string, to: string) =>
       `SELECT a.id AS account_id, a.code, a.name, a.type, sum(l.debit)::text AS d, sum(l.credit)::text AS c
          FROM accounts a
          JOIN journal_lines l ON l.account_id = a.id
-         JOIN journal_entries e ON e.id = l.entry_id AND e.entry_date BETWEEN $1 AND $2
+         JOIN journal_entries e ON e.id = l.entry_id AND e.entry_date BETWEEN $1 AND $2 AND e.closing_year IS NULL
         WHERE a.type IN ('revenue', 'expense')
         GROUP BY a.id, a.code, a.name, a.type
         ORDER BY a.code`,
@@ -65,7 +65,8 @@ export const balanceSheet = (p: Principal, asOf: string) =>
     const assets = rows.filter((s) => s.type === 'asset').map((s) => ({ s, amount: net(s) }));
     const liabilities = rows.filter((s) => s.type === 'liability').map((s) => ({ s, amount: -net(s) }));
     const equity = rows.filter((s) => s.type === 'equity').map((s) => ({ s, amount: -net(s) }));
-    // No year-end closing entries exist yet, so earnings are cumulative to the date (see ADR-009 note).
+    // After a year-end close the closed years' result sits in retained earnings and their revenue and expense net to zero,
+    // so this is the current open year's result only.
     const earnings = -rows.filter((s) => s.type === 'revenue' || s.type === 'expense').reduce((acc, s) => acc + net(s), 0n);
     const ta = sumUnits(assets);
     const tl = sumUnits(liabilities);

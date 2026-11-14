@@ -64,7 +64,8 @@ export async function provisionTenant(
   await c.query(
     `UPDATE tenant_settings SET
        ar_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1100'),
-       ap_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2000') WHERE tenant_id = $1`,
+       ap_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2000'),
+       re_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '3100') WHERE tenant_id = $1`,
     [tid],
   );
   for (const kind of ['invoice', 'bill']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);

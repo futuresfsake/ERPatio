@@ -49,6 +49,9 @@ export function subledgerRouter(prefix: string): Router {
     route(r, prefix, { method: 'post', path: `/${s.pays}`, tag, summary: `Record a ${s.pay}`, status: 201, guard: requirePermission(s.write), body: PaymentIn,
       handler: ({ principal, body, req }) => svc.recordPayment(principal, s.pay, body, req.ip) });
 
+    route(r, prefix, { method: 'post', path: `/${s.pays}/:id/void`, tag, summary: `Void a ${s.pay}`, guard: requirePermission(s.write), params: IdParam, body: VoidIn,
+      handler: ({ principal, params, body, req }) => svc.voidPayment(principal, s.pay, params.id, (body as { void_date?: string }).void_date, req.ip) });
+
     route(r, prefix, { method: 'get', path: `/reports/aging/${s.aging}`, tag: 'reports', summary: `${s.aging} aging`, guard: requirePermission(s.read), query: AgingQuery,
       handler: ({ principal, query }) => svc.aging(principal, s.doc, query.as_of ?? new Date().toISOString().slice(0, 10)) });
   }

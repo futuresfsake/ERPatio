@@ -87,6 +87,7 @@ export interface InsertOpts {
   createdBy?: string;
   postedBy?: string;
   approvedBy?: string | null;
+  closingYear?: number;
   detail?: Record<string, unknown>;
 }
 
@@ -122,9 +123,9 @@ export async function insertEntry(
   ).rows[0]?.journal_seq;
   const id = randomUUID();
   await c.query(
-    `INSERT INTO journal_entries (id, tenant_id, entry_no, entry_date, description, reference, reverses_entry_id, created_by, posted_by, approved_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [id, p.tenantId, entryNo, data.entry_date, data.description, data.reference ?? null, reverses, opts.createdBy ?? p.userId, opts.postedBy ?? p.userId, opts.approvedBy ?? null],
+    `INSERT INTO journal_entries (id, tenant_id, entry_no, entry_date, description, reference, reverses_entry_id, created_by, posted_by, approved_by, closing_year)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [id, p.tenantId, entryNo, data.entry_date, data.description, data.reference ?? null, reverses, opts.createdBy ?? p.userId, opts.postedBy ?? p.userId, opts.approvedBy ?? null, opts.closingYear ?? null],
   );
   await c.query(
     `INSERT INTO journal_lines (tenant_id, entry_id, line_no, account_id, debit, credit, memo)
@@ -157,10 +158,12 @@ export const reverseEntry = (p: Principal, id: string, on: string | undefined, i
     // subledger saying something the ledger no longer does. The document is voided instead.
     const owned = await c.query(
       `SELECT 1 FROM documents WHERE journal_entry_id = $1 OR void_entry_id = $1
-       UNION ALL SELECT 1 FROM payments WHERE journal_entry_id = $1`,
+       UNION ALL SELECT 1 FROM payments WHERE journal_entry_id = $1
+       UNION ALL SELECT 1 FROM payment_voids WHERE journal_entry_id = $1
+       UNION ALL SELECT 1 FROM journal_entries WHERE id = $1 AND closing_year IS NOT NULL`,
       [id],
     );
-    if (owned.rowCount) throw new ApiError(409, 'subledger_entry', 'This entry was posted by an invoice, bill or payment. Void that document instead.');
+    if (owned.rowCount) throw new ApiError(409, 'subledger_entry', 'This entry belongs to an invoice, bill, payment or year-end close. Undo it from there.');
     if (e.reverses_entry_id) throw new ApiError(409, 'not_reversible', 'A reversing entry cannot itself be reversed.');
     const lines = (await c.query<{ account_id: string; debit: string; credit: string; memo: string | null }>(
       'SELECT account_id, debit::text, credit::text, memo FROM journal_lines WHERE entry_id = $1 ORDER BY line_no', [id])).rows;
