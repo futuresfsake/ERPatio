@@ -4,6 +4,7 @@
  *   1. You can only hand out permissions you hold yourself (no privilege escalation).
  *   2. A workspace always keeps at least one active administrator.
  */
+import { assertUserSlot } from '../billing/service.js';
 import { randomBytes } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { withTenant } from '../../db/pool.js';
@@ -81,6 +82,7 @@ async function prepareInvite(c: PoolClient, p: Principal, userId: string, email:
 export const inviteUser = async (p: Principal, input: { email: string; fullName: string; roleIds: string[] }, ip?: string) => {
   const { user, mail } = await withTenant(p.tenantId, async (c) => {
     await notDemo(c, p.tenantId);
+    await assertUserSlot(c, p.tenantId);
     const roles = await rolesById(c, input.roleIds);
     for (const r of roles) assertCanGrant(p, r.permissions);
     let id: string;

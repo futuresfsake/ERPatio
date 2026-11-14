@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
 import { SignJWT, jwtVerify, decodeProtectedHeader } from 'jose';
 import { getEnv } from '../config/env.js';
+import { API_KEY_PREFIX, authenticateApiKey } from '../modules/apikeys/service.js';
 
 export const MIN_PASSWORD_LENGTH = 12;
 
@@ -23,6 +24,8 @@ export interface Principal {
   impersonator?: string;
   /** The refresh-token family this access token belongs to (for the sessions list). */
   sessionId?: string;
+  /** Set when the caller is an API key rather than a signed-in person. */
+  apiKeyId?: string;
 }
 
 let dummyHash: Promise<string> | undefined;
@@ -65,6 +68,7 @@ export async function signAccessToken(p: Principal): Promise<{ token: string; ex
 
 /** Throws on any problem. Only HS256 is accepted; the key is chosen by `kid` among known keys. */
 export async function verifyAccessToken(token: string): Promise<Principal> {
+  if (token.startsWith(API_KEY_PREFIX)) return authenticateApiKey(token);
   const env = getEnv();
   const secrets = [env.JWT_SECRET, ...(env.JWT_SECRET_PREVIOUS ? [env.JWT_SECRET_PREVIOUS] : [])];
   const kid = decodeProtectedHeader(token).kid;

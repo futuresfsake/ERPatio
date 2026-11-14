@@ -11,6 +11,8 @@ export const TEST_ENV: Record<string, string> = {
   AUTH_RATE_PER_MINUTE: '1000',
   LOCKOUT_THRESHOLD: '5',
   DEMO_MAX_ENTRIES: '100',
+  WEBHOOK_ALLOW_INSECURE: 'true',
+  WEBHOOK_ALLOW_PRIVATE: 'true',
   DOCS_ENABLED: 'true',
   SIGNUP_ENABLED: 'true',
   HIBP_ENABLED: 'false',

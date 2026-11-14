@@ -167,6 +167,15 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-09 API, webhooks and billing (M6b, migration 013)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-097 | API keys | PASS | shown once, only a SHA-256 stored; bearer use; permissions capped by the key, by what the creator holds now, and by a fixed never-list (users, roles, settings, approvals, pay, export, key management); stops on revoke, expiry, creator deactivated, workspace suspended; own per-minute budget with Retry-After; a key cannot manage keys (`integrations.test.ts`) |
+| US-098 | Webhooks | PASS | transactional outbox (no event for a rolled-back change); HMAC-SHA256 over timestamp and body, secret shown once and stored encrypted; identifiers only in payloads; retry with backoff for ~9 hours, then failed; endpoint switched off after 10 failures in a row |
+| US-098b | Webhook address safety (SSRF) | PASS | https only, no credentials, no private, loopback, link-local or internal names; checked when saved and again at connect time on the address actually used; no redirects; production refuses to boot with the two test relaxations on |
+| US-099 | Plans, limits, usage metering | PASS | every posting counted in the same transaction; the entry over the monthly cap is refused (402) and rolls back whole, including invoices posted through the same door; user cap on invite; operator-only plan change that refuses a plan the workspace already exceeds |
+| US-099b | Billing (payments) | NOT MET (decision) | no payment processor; meters and limits only, the operator sets the plan |
+
 ### EPIC-08 Dashboards and data (M6a, no migration)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -394,6 +403,10 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-58 | Import covers four entities; there is no import of opening balances, open invoices or bills, stock quantities or employees | Medium | Add opening-balance and open-item imports before migrating a real customer |
 | F-59 | The export is one JSON file built table by table with a cursor; very large workspaces would be slow, and there is no per-table CSV | Low | Add per-table CSV and background export if sizes grow |
 | F-60 | Profitability by item uses the order date for sales and the movement date for cost within the same range, so a delivery in a later month than its order can skew a month | Low | Move to delivery-date based sales |
+| F-61 | The webhook worker runs inside the web process, holds a transaction while it calls out (up to 5 s a delivery, 20 per pass), and a restart can repeat a delivery (at-least-once; receivers must de-duplicate on the delivery id) | Medium | Move to a separate worker process when volume grows |
+| F-62 | API-key rate limits and the last-used time are kept per process; several instances each allow the full budget | Low | Shared counter if scaled out |
+| F-63 | No payment collection, invoicing of the subscription, proration or dunning; the plan is set by the operator | Medium | Integrate a payment provider before charging customers |
+| F-64 | Webhook delivery has no per-tenant concurrency or size controls and no replay button | Low | Add if a customer needs it |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

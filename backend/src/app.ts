@@ -22,6 +22,7 @@ import { productionRouter } from './modules/production/routes.js';
 import { hcmRouter } from './modules/hcm/routes.js';
 import { biRouter } from './modules/bi/routes.js';
 import { dataRouter } from './modules/data/routes.js';
+import { integrationsRouter } from './modules/apikeys/routes.js';
 import { periodsRouter } from './modules/periods/routes.js';
 import { platformRouter } from './modules/platform/routes.js';
 import { privacyRouter } from './modules/privacy/routes.js';
@@ -109,6 +110,7 @@ export function createApp(): Express {
   app.use(API, hcmRouter(API));
   app.use(API, biRouter(API));
   app.use(API, dataRouter(API));
+  app.use(API, integrationsRouter(API));
   app.use(API, draftsRouter(API));
   app.use(API, periodsRouter(API));
   app.use(API, reportsRouter(API));

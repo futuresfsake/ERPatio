@@ -7,6 +7,7 @@ import { ApiError, notFound } from '../../lib/errors.js';
 import { fromUnits, toUnits } from '../../lib/money.js';
 import type { Principal } from '../../lib/security.js';
 import { recordAudit } from '../audit/audit.js';
+import { countEntry } from '../billing/service.js';
 import type { AccountIn, AccountPatch, EntryIn } from './schemas.js';
 
 // ------------------------------------------------------------------ accounts
@@ -107,6 +108,8 @@ export async function insertEntry(
     const n = Number((await c.query<{ n: string }>('SELECT count(*) AS n FROM journal_entries')).rows[0]?.n ?? 0);
     if (n >= getEnv().DEMO_MAX_ENTRIES) throw new ApiError(403, 'demo_limit', 'The demo workspace is full. It is reset nightly.');
   }
+
+  await countEntry(c, p.tenantId);
 
   const ids = [...new Set(data.lines.map((l) => l.account_id))];
   const ok = Number(

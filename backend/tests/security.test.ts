@@ -166,6 +166,11 @@ describe('configuration guards (NFR-08)', () => {
     expect(() => getEnv()).toThrow(/SMTP_URL/);
     process.env.SIGNUP_ENABLED = 'false';
     resetEnvCache();
+    // the webhook relaxations that tests rely on must never be allowed in production
+    expect(() => getEnv()).toThrow(/WEBHOOK_ALLOW/);
+    process.env.WEBHOOK_ALLOW_INSECURE = 'false';
+    process.env.WEBHOOK_ALLOW_PRIVATE = 'false';
+    resetEnvCache();
     expect(() => getEnv()).not.toThrow();
   });
 });

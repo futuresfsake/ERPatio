@@ -46,10 +46,10 @@ async function setTenant(c: PoolClient, tenantId: string) {
 
 export async function provisionTenant(
   c: PoolClient,
-  o: { slug: string; name: string; isDemo?: boolean; fiscalYears?: number[]; mfaRequiredRoles?: string[]; modules?: string[] },
+  o: { slug: string; name: string; isDemo?: boolean; fiscalYears?: number[]; mfaRequiredRoles?: string[]; modules?: string[]; plan?: string },
 ): Promise<string> {
   const tid = (
-    await c.query<{ id: string }>('INSERT INTO tenants (slug, name, is_demo) VALUES ($1, $2, $3) RETURNING id', [o.slug, o.name, o.isDemo ?? false])
+    await c.query<{ id: string }>('INSERT INTO tenants (slug, name, is_demo, plan_code) VALUES ($1, $2, $3, $4) RETURNING id', [o.slug, o.name, o.isDemo ?? false, o.plan ?? (o.isDemo ? 'enterprise' : 'standard')])
   ).rows[0]!.id;
   await setTenant(c, tid);
   await c.query('INSERT INTO tenant_counters (tenant_id) VALUES ($1)', [tid]);
