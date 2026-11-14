@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiError, endpoints, type Period } from '../api';
 import { useAuth } from '../auth';
+import { formatApiNum } from '../lib/money';
+import { sub } from '../subledger';
 import { Dialog, Loading, Problem, useToast } from '../ui';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -17,6 +19,12 @@ export function FiscalPeriods() {
   const [reason, setReason] = useState('');
   const [addingYear, setAddingYear] = useState(false);
   const [year, setYear] = useState('');
+  const [closingYear, setClosingYear] = useState<number | null>(null);
+  const preview = useQuery({ queryKey: ['closing-preview', closingYear], queryFn: () => sub.closingPreview(closingYear!), enabled: closingYear !== null });
+  const closeYear = useMutation({
+    mutationFn: () => sub.closeYear(closingYear!),
+    onSuccess: () => { toast(`Fiscal year ${closingYear} closed`); setClosingYear(null); void qc.invalidateQueries({ queryKey: ['accounts'] }); void refresh(); },
+  });
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['periods'] });
   const close = useMutation({
@@ -50,7 +58,7 @@ export function FiscalPeriods() {
       <div className="stack" style={{ gap: 24 }}>
         {years.map((y) => (
           <section key={y}>
-            <h2 style={{ marginBottom: 8 }}>{y}</h2>
+            <div className="toolbar"><h2 style={{ marginBottom: 8 }}>{y}</h2>{manage && <button className="linkbtn" onClick={() => setClosingYear(y)}>Close the year…</button>}</div>
             <div className="tbl-wrap">
               <table>
                 <thead><tr><th>Month</th><th className="hide-sm">Dates</th><th>Status</th><th /></tr></thead>
@@ -75,6 +83,27 @@ export function FiscalPeriods() {
           </section>
         ))}
       </div>
+
+      <Dialog open={closingYear !== null} onClose={() => setClosingYear(null)} title={`Close fiscal year ${closingYear ?? ''}`}>
+        <p>One entry dated 31 December moves the year's revenue and expenses into retained earnings. The income statement for the year is unchanged. It cannot be undone from the journal.</p>
+        {preview.isLoading && <Loading what="preview" />}
+        <Problem error={preview.error ?? closeYear.error} />
+        {preview.data && (
+          <div className="stack" style={{ marginTop: 12 }}>
+            {preview.data.already_closed && <div className="notice warn">This year has already been closed.</div>}
+            {preview.data.open_drafts > 0 && <div className="notice warn">{preview.data.open_drafts} draft entries are dated in this year. Post or delete them first.</div>}
+            <div className="tbl-wrap"><table><tbody>
+              {preview.data.accounts.map((a) => <tr key={a.account_id}><td className="code">{a.code}</td><td>{a.name}</td><td className="num">{formatApiNum(a.balance)} {a.side === 'credit' ? 'Cr' : 'Dr'}</td></tr>)}
+              {preview.data.accounts.length === 0 && <tr><td className="empty">No revenue or expense to close.</td></tr>}
+            </tbody></table></div>
+            <p><b>{preview.data.net_income.startsWith('-') ? 'Loss' : 'Profit'}</b> carried to retained earnings: {formatApiNum(preview.data.net_income.replace('-', ''))}</p>
+          </div>
+        )}
+        <div className="row">
+          <button className="btn" onClick={() => setClosingYear(null)}>Cancel</button>
+          <button className="btn primary" disabled={!preview.data || preview.data.already_closed || preview.data.open_drafts > 0 || preview.data.accounts.length === 0 || closeYear.isPending} onClick={() => closeYear.mutate()}>Close the year</button>
+        </div>
+      </Dialog>
 
       <Dialog open={!!reopening} onClose={() => setReopening(null)} title={reopening ? `Reopen ${MONTHS[reopening.month - 1]} ${reopening.year}?` : ''}>
         <p>Postings are allowed again until you close it. The reason is kept in the audit log.</p>

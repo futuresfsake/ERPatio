@@ -17,7 +17,7 @@ export interface Doc {
   reference: string | null; notes: string | null; status: 'draft' | 'posted' | 'void'; subtotal: string; tax_total: string; total: string; paid_total: string; balance: string;
   journal_entry_id: string | null; void_entry_id: string | null; posted_at: string | null;
 }
-export interface DocDetail extends Doc { lines: DocLine[]; payments: { payment_id: string; pay_date: string; method: string; reference: string | null; amount: string }[] }
+export interface DocDetail extends Doc { lines: DocLine[]; payments: { payment_id: string; pay_date: string; method: string; reference: string | null; amount: string; voided: boolean }[] }
 export interface DocInput {
   party_id: string; doc_date: string; due_date?: string; reference?: string; notes?: string;
   lines: { description: string; account_id: string; quantity: string; unit_price: string; tax_code_id: string | null }[];
@@ -28,6 +28,8 @@ export interface PaymentInput { party_id: string; pay_date: string; bank_account
 export interface AgingRow { party_id: string; code: string; name: string; current: string; d1_30: string; d31_60: string; d61_90: string; d90_plus: string; total: string }
 export interface Aging { as_of: string; rows: AgingRow[]; totals: Record<string, string>; ledger_balance: string; reconciles: boolean }
 export interface VatReport { from: string; to: string; rows: { code: string; name: string; kind: string; rate: string; base: string; tax: string }[]; output_tax: string; input_tax: string; payable: string }
+
+export interface ClosingPreview { year: number; already_closed: boolean; open_drafts: number; net_income: string; accounts: { account_id: string; code: string; name: string; type: string; balance: string; side: 'debit' | 'credit' }[] }
 
 export const sub = {
   parties: (s: Side) => api<Party[]>(`/${SIDES[s].parties}`),
@@ -41,6 +43,9 @@ export const sub = {
   postDoc: (s: Side, id: string) => api<DocDetail>(`/${SIDES[s].docs}/${id}/post`, { method: 'POST' }),
   voidDoc: (s: Side, id: string) => api<DocDetail>(`/${SIDES[s].docs}/${id}/void`, { method: 'POST', json: {} }),
   pay: (s: Side, p: PaymentInput) => api<{ id: string; amount: string }>(`/${SIDES[s].pay}`, { method: 'POST', json: p }),
+  voidPayment: (s: Side, id: string) => api<{ id: string; voided: boolean }>(`/${SIDES[s].pay}/${id}/void`, { method: 'POST', json: {} }),
+  closingPreview: (year: number) => api<ClosingPreview>(`/fiscal-years/${year}/closing-preview`),
+  closeYear: (year: number) => api<{ year: number; net_income: string }>(`/fiscal-years/${year}/close`, { method: 'POST' }),
   taxCodes: () => api<TaxCode[]>('/tax-codes'),
   aging: (s: Side, asOf: string) => api<Aging>(`/reports/aging/${SIDES[s].aging}?as_of=${asOf}`),
   vat: (from: string, to: string) => api<VatReport>(`/reports/vat?from=${from}&to=${to}`),

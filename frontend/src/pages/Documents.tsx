@@ -180,6 +180,10 @@ export function DocumentDetail({ side }: { side: Side }) {
     mutationFn: (a: 'post' | 'void' | 'delete'): Promise<unknown> => (a === 'post' ? sub.postDoc(side, id!) : a === 'void' ? sub.voidDoc(side, id!) : sub.deleteDoc(side, id!)),
     onSuccess: (_r, a) => { if (a === 'delete') { toast('Draft deleted'); void qc.invalidateQueries({ queryKey: ['docs', side] }); nav(`/${S.docs}`); } else { toast(a === 'post' ? 'Posted to the ledger' : 'Voided'); refresh(); } },
   });
+  const undo = useMutation({
+    mutationFn: (paymentId: string) => sub.voidPayment(side, paymentId),
+    onSuccess: () => { toast(`${S.PayOne} voided`); refresh(); },
+  });
   const d = q.data;
   const write = can(S.write);
   return (
@@ -194,7 +198,7 @@ export function DocumentDetail({ side }: { side: Side }) {
           </div>
         )}
       </div>
-      <Problem error={q.error ?? act.error} />
+      <Problem error={q.error ?? act.error ?? undo.error} />
       {q.isLoading && <Loading what={S.doc} />}
       {d && (
         <>
@@ -219,8 +223,8 @@ export function DocumentDetail({ side }: { side: Side }) {
           {d.payments.length > 0 && (
             <>
               <h2 style={{ marginTop: 24 }}>{S.PayOne}s against this {S.doc}</h2>
-              <div className="tbl-wrap"><table><thead><tr><th>Date</th><th>Method</th><th>Reference</th><th className="num">Amount</th></tr></thead>
-                <tbody>{d.payments.map((p) => <tr key={p.payment_id}><td>{longDate(p.pay_date)}</td><td>{p.method}</td><td>{p.reference ?? ''}</td><td className="num">{formatApiNum(p.amount)}</td></tr>)}</tbody></table></div>
+              <div className="tbl-wrap"><table><thead><tr><th>Date</th><th>Method</th><th>Reference</th><th className="num">Amount</th><th /></tr></thead>
+                <tbody>{d.payments.map((p) => <tr key={p.payment_id} className={p.voided ? 'off' : ''}><td>{longDate(p.pay_date)}</td><td>{p.method}</td><td>{p.reference ?? ''}</td><td className="num">{formatApiNum(p.amount)}</td><td className="num">{p.voided ? 'Voided' : write && <button className="linkbtn" disabled={undo.isPending} onClick={() => { if (window.confirm('Void this ' + S.PayOne.toLowerCase() + '? The ledger entry is reversed and the balance reopens.')) undo.mutate(p.payment_id); }}>Void</button>}</td></tr>)}</tbody></table></div>
             </>
           )}
           <PayDialog side={side} doc={d} open={paying} onClose={() => setPaying(false)} onDone={() => { toast(`${S.PayOne} recorded`); refresh(); }} />

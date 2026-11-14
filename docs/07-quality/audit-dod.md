@@ -192,6 +192,8 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-044 | Receipts and payments with allocation | PASS | partial, multi-document, over-allocation refused, concurrent receipts cannot over-collect, a trigger checks allocations sum to the payment |
 | US-045 | Tax codes and tax report | PASS | output and input codes, report nets them; drafts never count |
 | US-047 | Aging | PASS | five buckets, payments after the cut-off ignored, compared with the ledger control account |
+| US-049 | Year-end close into retained earnings | PASS | one flagged entry dated 31 Dec; income statement for the year unchanged; balance sheet still balances; once only, even concurrently (`yearend.test.ts`) |
+| US-050 | Undo a receipt or payment | PASS | reversing entry, balances restored, aging honours the void date, once only; the payment row stays |
 | US-048 | Subledger and ledger cannot drift | PASS | invoice, bill and payment entries cannot be reversed by hand (409); a void reverses the entry |
 
 Not started: EPIC-03 US-041 to 045 and 047 (bills, invoices, aging, currency, VAT, posting-rule engine); all of EPIC-04 (supply chain), EPIC-05 (production, HR, BI) and US-095 to 099 (import, export, API keys, webhooks, billing).
@@ -310,9 +312,9 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-22 | JWT key rotation and HSTS have no automated test | Low | Add one test each |
 | F-23 | Motion, new screens and the mobile-first stylesheet were reviewed by type-check, lint, build and screenshots only; animations not watched at full motion | Low | Review in a browser; add Playwright |
 | F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
-| F-25 | No year-end closing, retained-earnings roll-forward, comparatives or PDF export | Medium | Build next in M2 |
+| F-25 | ~~No year-end closing~~ **Resolved**. Still missing: comparatives, PDF export, multi-currency, credit notes, bank reconciliation | Medium | Rest of M2 |
 | F-35 | Invoices, bills and receipts are posted directly; they bypass the optional journal approval (approver is not the author) | Medium | Add approval to documents if a customer requires it |
-| F-36 | A payment cannot be undone yet (no payment reversal, credit notes, refunds or unapplied cash); a paid invoice cannot be voided | Medium | Next in M2 |
+| F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |
 | F-37 | Customer and supplier contact details (email, phone) are not yet in the data-subject export or the erasure routine | Medium | Extend DSAR and erasure to parties before any real customer data is entered |
 | F-38 | `npm audit` reports 3 moderate findings in `glob` and `minimatch`, pulled in by `node-pg-migrate` (a deploy-time tool, not on the request path) | Low | Update when the tool releases a fix; Dependabot is watching |
 | F-39 | The new pages (invoices, bills, aging, tax report) were checked by type-check, lint and build only, not in a browser | Low | Run them in the browser; add Playwright (F-11) |
@@ -341,3 +343,17 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 4. Run the restore drill and the breach tabletop; get the threat-model sign-off.
 5. Run the break-it check; add the browser tests (F-11, F-12).
 6. Then M2 remainder and M3 onward.
+
+## Dependency review (Dependabot PRs #2 to #7), 2026-11-14
+
+| PR | Change | Result | Decision |
+|---|---|---|---|
+| #2 | `github/codeql-action` 3 to 4 | Official GitHub action, CI green | Applied |
+| #3 | `actions/setup-node` 4 to 7 | Official GitHub action, CI green | Applied |
+| #4 | `gitleaks/gitleaks-action` 2 to 3 | Publisher is the gitleaks project, same one already used; CI green | Applied |
+| #5 | `actions/checkout` 4 to 7 | Official GitHub action, CI green | Applied |
+| #6, #7 | `typescript` 6.0.3 to 7.0.2 (backend, frontend) | **CI fails**: `typescript-eslint` 8.72 does not accept TypeScript 7 (`ERESOLVE` on `npm ci`) | Not applied. Wait for a `typescript-eslint` release that supports it |
+
+Method: read each diff (workflow files only, no other change), confirmed the publisher, checked CI on the PR. Not done: workflows reference actions by version tag, not by commit SHA, so a moved tag would be picked up (finding F-41). The four action bumps were applied in one commit with the next change; Dependabot closes its PRs when the change lands.
+
+| F-41 | GitHub Actions are pinned to version tags, not commit SHAs | Low | Pin to SHAs and let Dependabot update them |
