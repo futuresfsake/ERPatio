@@ -1,5 +1,6 @@
 /** Append-only audit trail (FR-IAM-11, T-05). Never put PII in `detail`. */
 import type { PoolClient } from 'pg';
+import { enqueueWebhooks } from './outbox.js';
 
 export interface AuditEvent {
   tenantId: string;
@@ -20,4 +21,5 @@ export async function recordAudit(c: PoolClient, e: AuditEvent): Promise<void> {
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [e.tenantId, e.actorUserId ?? null, e.action, e.entityType ?? null, e.entityId ?? null, safeIp(e.ip ?? undefined), JSON.stringify(e.detail ?? {})],
   );
+  await enqueueWebhooks(c, e);
 }

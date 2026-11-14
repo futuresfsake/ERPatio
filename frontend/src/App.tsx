@@ -26,6 +26,7 @@ import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents'
 import { Parties } from './pages/Parties';
 import { Dashboards, ProfitabilityPage } from './pages/Dashboards';
 import { DataPage } from './pages/DataPage';
+import { Integrations } from './pages/Integrations';
 import { AttendancePage, EmployeesPage, PayrollPage, PayrollRunPage, RulesPage } from './pages/Hr';
 import { BomPage, WipPage, WorkOrderDetail, WorkOrderList } from './pages/Production';
 import { BankPage } from './pages/Bank';
@@ -101,6 +102,7 @@ function Frame() {
               {people && link('/roles', 'Roles')}
               {can('audit:read') && link('/audit', 'Audit log')}
               {(can('data:import') || can('data:export')) && link('/data', 'Import and export')}
+              {(can('integrations:manage') || can('billing:read')) && link('/integrations', 'Integrations and plan')}
               {can('settings:manage') && link('/settings', 'Settings')}
             </>
           )}
@@ -176,6 +178,7 @@ export function App() {
         <Route path="dashboards" element={<Dashboards />} />
         <Route path="reports/profitability" element={<ProfitabilityPage />} />
         <Route path="data" element={<DataPage />} />
+        <Route path="integrations" element={<Integrations />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="payroll" element={<PayrollPage />} />

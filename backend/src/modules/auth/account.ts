@@ -82,7 +82,7 @@ export async function signup(input: SignupInput, ip: string | undefined): Promis
       const slug = attempt === 0 ? base : `${base.slice(0, 26)}-${randomBytes(2).toString('hex')}`;
       await client.query('SAVEPOINT slug_try');
       try {
-        tenantId = await provisionTenant(client, { slug, name: input.company.trim(), mfaRequiredRoles: ['TenantAdmin'] });
+        tenantId = await provisionTenant(client, { slug, name: input.company.trim(), mfaRequiredRoles: ['TenantAdmin'], plan: 'trial' });
       } catch (e) {
         if ((e as { code?: string }).code !== '23505') throw e;
         await client.query('ROLLBACK TO SAVEPOINT slug_try');

@@ -32,9 +32,14 @@ const schema = z
     MAIL_FROM: z.string().default('ERPatio <no-reply@localhost>'),
     APP_URL: z.string().default('http://localhost:5173'),
     SIGNUP_ENABLED: bool.default(false),
+    // Webhooks go to https and public addresses only. These two relax that for local development and tests, never in production.
+    WEBHOOK_ALLOW_INSECURE: bool.default(false),
+    WEBHOOK_ALLOW_PRIVATE: bool.default(false),
     HIBP_ENABLED: bool.default(true),
   })
   .superRefine((v, ctx) => {
+    if (v.NODE_ENV === 'production' && (v.WEBHOOK_ALLOW_INSECURE || v.WEBHOOK_ALLOW_PRIVATE))
+      ctx.addIssue({ code: 'custom', message: 'WEBHOOK_ALLOW_INSECURE and WEBHOOK_ALLOW_PRIVATE must be off in production' });
     if (v.NODE_ENV !== 'production') return;
     if (v.JWT_SECRET.length < 32 || v.JWT_SECRET === DEV_SECRET)
       ctx.addIssue({ code: 'custom', message: 'JWT_SECRET must be unique, random, 32+ characters' });

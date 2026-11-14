@@ -4,6 +4,7 @@
  *   - list tenants, suspend or reactivate, switch modules
  *   - a support session: read-only, time-boxed, needs a reason, no refresh token
  */
+import { setPlan } from '../billing/service.js';
 import { withOwner, withTenant } from '../../db/pool.js';
 import { ApiError, notFound } from '../../lib/errors.js';
 import { MODULES, P } from '../../lib/permissions.js';
@@ -51,6 +52,12 @@ export async function setTenantStatus(p: Principal, tenantId: string, status: 'a
     await recordAudit(c, { tenantId, action: status === 'suspended' ? 'platform.tenant_suspended' : 'platform.tenant_reactivated', actorUserId: p.userId, ip, detail: { operator: p.userId } });
   }, tenantId);
   return { id: t.id, slug: t.slug, status };
+}
+
+export async function setTenantPlan(p: Principal, tenantId: string, plan: string, ip?: string) {
+  await assertPlatformOperator(p);
+  await target(tenantId);
+  return setPlan(p, tenantId, plan, ip);
 }
 
 export async function setTenantModules(p: Principal, tenantId: string, modules: Partial<Record<string, boolean>>, ip?: string) {

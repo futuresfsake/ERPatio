@@ -30,6 +30,8 @@ export const P = {
   PRODUCTION_READ: 'production:read',
   PRODUCTION_WRITE: 'production:write',
   DASHBOARD_READ: 'dashboard:read',
+  INTEGRATIONS_MANAGE: 'integrations:manage',
+  BILLING_READ: 'billing:read',
   DATA_IMPORT: 'data:import',
   DATA_EXPORT: 'data:export',
   EMPLOYEES_READ: 'employees:read',
@@ -54,7 +56,7 @@ export const MODULE_OF: Record<Permission, Module | 'core' | 'platform'> = {
   'accounts:read': 'finance', 'accounts:write': 'finance', 'journal:read': 'finance', 'journal:post': 'finance',
   'journal:reverse': 'finance', 'journal:approve': 'finance', 'reports:read': 'finance', 'periods:manage': 'finance',
   'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance', 'bank:manage': 'finance', 'production:read': 'production', 'production:write': 'production',
-  'dashboard:read': 'bi', 'data:import': 'core', 'data:export': 'core',
+  'dashboard:read': 'bi', 'integrations:manage': 'core', 'billing:read': 'core', 'data:import': 'core', 'data:export': 'core',
   'employees:read': 'hcm', 'employees:write': 'hcm', 'payroll:read': 'hcm', 'payroll:manage': 'hcm', 'payroll:approve': 'hcm',
   'inventory:read': 'supply_chain', 'inventory:write': 'supply_chain', 'orders:read': 'supply_chain', 'orders:write': 'supply_chain',
   'audit:read': 'core', 'settings:manage': 'core', 'users:read': 'core', 'users:manage': 'core', 'roles:manage': 'core',
@@ -73,6 +75,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'payables:read': 'See suppliers, bills and payments', 'payables:write': 'Manage suppliers, bills and payments',
   'taxes:manage': 'Set up tax codes',
   'bank:manage': 'Import bank statements and reconcile the bank',
+  'integrations:manage': 'Create API keys and webhooks', 'billing:read': 'See the plan, limits and usage',
   'dashboard:read': 'See dashboards and profitability', 'data:import': 'Import customers, suppliers, items and accounts from CSV', 'data:export': 'Download a full export of the workspace',
   'employees:read': 'See employees and attendance (not pay)', 'employees:write': 'Manage employees, shifts and attendance',
   'payroll:read': 'See pay rates, payroll runs and payslips', 'payroll:manage': 'Prepare payroll runs and set statutory rules',
@@ -94,7 +97,7 @@ export const SYSTEM_ROLES: Record<string, Permission[]> = {
   ProductionManager: [P.PRODUCTION_READ, P.PRODUCTION_WRITE, P.INVENTORY_READ, P.ORDERS_READ, P.ACCOUNTS_READ],
   WarehouseClerk: [P.INVENTORY_READ, P.INVENTORY_WRITE, P.ORDERS_READ, P.ORDERS_WRITE, P.ACCOUNTS_READ, P.RECEIVABLES_READ, P.PAYABLES_READ],
   // Customer persona: the finance manager approves entries, closes periods and sets the approval policy.
-  FinanceManager: [...accountant, P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.SETTINGS_MANAGE, P.AUDIT_READ, P.TAXES_MANAGE, P.DATA_IMPORT],
+  FinanceManager: [...accountant, P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.SETTINGS_MANAGE, P.AUDIT_READ, P.TAXES_MANAGE, P.DATA_IMPORT, P.BILLING_READ],
 };
 /** Public demo role: posts and reads like an Accountant plus the audit log; no administration. */
 export const DEMO_ROLE: [string, Permission[]] = ['DemoUser', [...new Set([...accountant, P.AUDIT_READ, P.INVENTORY_WRITE, P.ORDERS_WRITE, P.PRODUCTION_READ, P.PRODUCTION_WRITE, P.EMPLOYEES_READ, P.EMPLOYEES_WRITE, P.PAYROLL_READ, P.PAYROLL_MANAGE, P.DASHBOARD_READ, P.DATA_IMPORT])]];
@@ -132,7 +135,8 @@ export function requirePermission(permission: Permission | null, opts: { allowMf
     let principal: Principal;
     try {
       principal = await verifyAccessToken(token);
-    } catch {
+    } catch (e) {
+      if (e instanceof ApiError) return next(e); // for example an API key over its rate limit
       return next(new ApiError(401, 'invalid_token', 'Your session is invalid or has expired.', { 'WWW-Authenticate': 'Bearer' }));
     }
     const ctx = als.getStore();
@@ -179,3 +183,12 @@ export function assertAllRoutesGuarded(app: { router: unknown }): void {
   const bad = unguardedRoutes(app);
   if (bad.length) throw new Error(`Routes without a declared guard: ${bad.join(', ')}`);
 }
+
+/**
+ * What an API key can never hold, whoever creates it: administration, approvals, secrets, pay, and bulk export.
+ * A key is a credential that lives in someone else's system, so it is limited to ordinary business reads and writes.
+ */
+export const API_KEY_FORBIDDEN: Permission[] = [
+  P.USERS_MANAGE, P.ROLES_MANAGE, P.SETTINGS_MANAGE, P.PRIVACY_MANAGE, P.PLATFORM_MANAGE, P.INTEGRATIONS_MANAGE, P.DATA_EXPORT,
+  P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.PAYROLL_READ, P.PAYROLL_MANAGE, P.PAYROLL_APPROVE, P.EMPLOYEES_WRITE, P.AUDIT_READ,
+];
