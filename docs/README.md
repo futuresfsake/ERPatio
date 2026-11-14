@@ -8,6 +8,7 @@
 | See how a person uses the app and what the system does | [App flow](03-architecture/appflow.md) |
 | Click through the interface | [HTML prototype](03-architecture/design/prototype/erpatio-prototype.html) (the first 8 screens; periods, drafts, statements and settings exist only in the real app) |
 | Know what is done and what is not | [DoD audit](07-quality/audit-dod.md) |
+| See how security is tested | [Security testing](03-architecture/security-testing.md) |
 | Deploy it | [Render + Neon runbook](06-operations/deployment-render-neon.md) |
 
 ## 01 Product: why
@@ -18,7 +19,7 @@
 
 ## 03 Architecture: how
 - Decisions (ADRs): [001 SaaS](03-architecture/adr/ADR-001-saas-delivery-model.md) · [002 tenant isolation](03-architecture/adr/ADR-002-tenant-isolation-strategy.md) · [003 ledger integrity](03-architecture/adr/ADR-003-ledger-integrity.md) · [004 authentication](03-architecture/adr/ADR-004-authentication-design.md) · [005 privacy by design](03-architecture/adr/ADR-005-privacy-by-design.md) · [006 technology stack](03-architecture/adr/ADR-006-technology-stack.md) · [007 hosting](03-architecture/adr/ADR-007-hosting-render-neon.md) · [008 public demo](03-architecture/adr/ADR-008-public-demo-workspace.md) · [009 drafts, periods, approval](03-architecture/adr/ADR-009-drafts-periods-and-approval.md) · [010 platform operator](03-architecture/adr/ADR-010-platform-operator.md)
-- [App flow](03-architecture/appflow.md) · [Threat model](03-architecture/23-threat-model.md) · [Data classification register](03-architecture/data-classification-register.md)
+- [App flow](03-architecture/appflow.md) · [Threat model](03-architecture/23-threat-model.md) · [Security testing](03-architecture/security-testing.md) · [Data classification register](03-architecture/data-classification-register.md)
 - Design: [Backend structure](03-architecture/design/backend-structure.md) · [UI design system](03-architecture/design/ui-design-system.md) · [Prototype](03-architecture/design/prototype/erpatio-prototype.html) · history: [initial plan](03-architecture/design/initial-technical-plan.md), [folder sketch](03-architecture/design/step1-folder-structure.md), [schema sketch](03-architecture/design/step2-core-schema.md)
 
 ## 04 Delivery: when

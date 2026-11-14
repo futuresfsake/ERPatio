@@ -46,7 +46,7 @@ describe('sign-up (US-010)', () => {
     const u = (await owner.query('SELECT email, email_verified FROM users WHERE tenant_id = $1', [tenant.id])).rows[0];
     expect(u).toEqual({ email: 'ana@mabini.test', email_verified: false });
     expect((await owner.query('SELECT kind, version FROM consents WHERE tenant_id = $1', [tenant.id])).rows[0]).toEqual({ kind: 'privacy_notice', version: '2026-11' });
-    expect((await owner.query('SELECT count(*)::int AS n FROM accounts WHERE tenant_id = $1', [tenant.id])).rows[0].n).toBe(16);
+    expect((await owner.query('SELECT count(*)::int AS n FROM accounts WHERE tenant_id = $1', [tenant.id])).rows[0].n).toBe(17);
     expect((await owner.query('SELECT count(*)::int AS n FROM fiscal_periods WHERE tenant_id = $1', [tenant.id])).rows[0].n).toBe(36);
     expect((await owner.query('SELECT mfa_required_roles FROM tenant_settings WHERE tenant_id = $1', [tenant.id])).rows[0].mfa_required_roles).toEqual(['TenantAdmin']);
     expect(mail.outbox).toHaveLength(1);

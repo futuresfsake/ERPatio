@@ -13,6 +13,7 @@ import { closePool, createPool, withTenant } from '../src/db/pool.js';
 import { DEMO_ROLE } from '../src/lib/permissions.js';
 import { createUser, provisionTenant } from '../src/modules/tenants/provision.js';
 import { postEntry } from '../src/modules/ledger/service.js';
+import * as sub from '../src/modules/subledger/service.js';
 import type { Principal } from '../src/lib/security.js';
 
 export const DEMO_SLUG = 'casa-verde-demo';
@@ -59,10 +60,11 @@ export async function seedDemo(reset: boolean): Promise<string> {
       await c.query("SELECT set_config('app.tenant_id', $1, true)", [existing.id]);
       // Append-only triggers are lifted for this one maintenance transaction, demo tenant only.
       const guarded = ['audit_log', 'journal_lines', 'journal_entries'];
-      for (const t of guarded) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
-      for (const t of [...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
+      const subledger = ['payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
+      for (const t of [...guarded, 'payments', 'payment_allocations']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      for (const t of [...subledger, ...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
         await c.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [existing.id]); // eslint-disable-line no-restricted-syntax
-      for (const t of guarded) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      for (const t of [...guarded, 'payments', 'payment_allocations']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);
     }
     tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true });
@@ -87,7 +89,24 @@ export async function seedDemo(reset: boolean): Promise<string> {
       lines: lines.map(([code, debit, credit]) => ({ account_id: codes.get(code)!, debit, credit })),
     }, 'seed');
   }
-  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries; sign in as ${DEMO_EMAIL}`;
+
+  // Receivables and payables, also through the real service: two invoices (one part-paid, one overdue), a bill, a draft.
+  const taxes = await sub.listTaxCodes(principal);
+  const tax = (code: string) => taxes.find((t: { code: string }) => t.code === code)!.id as string;
+  const cust = (await sub.createParty(principal, 'customer', { code: 'CAFE', name: 'Casa Verde Cafe', terms_days: 30 }, 'seed')).id as string;
+  const cust2 = (await sub.createParty(principal, 'customer', { code: 'BAKE', name: 'Maria Bakeshop', terms_days: 15 }, 'seed')).id as string;
+  const supp = (await sub.createParty(principal, 'supplier', { code: 'MILL', name: 'Harina Mills', terms_days: 30 }, 'seed')).id as string;
+  const line = (account: string, description: string, unit_price: string, code: string) =>
+    ({ description, account_id: codes.get(account)!, quantity: '1', unit_price, tax_code_id: tax(code) });
+  const i1 = await sub.createDraft(principal, 'invoice', { party_id: cust, doc_date: isoDaysAgo(20), lines: [line('4000', 'Monthly catering', '25000.00', 'OUT12')] }, 'seed');
+  await sub.postDocument(principal, 'invoice', i1.id, 'seed');
+  const i2 = await sub.createDraft(principal, 'invoice', { party_id: cust2, doc_date: isoDaysAgo(60), lines: [line('4000', 'Wholesale bread order', '8000.00', 'OUT12')] }, 'seed');
+  await sub.postDocument(principal, 'invoice', i2.id, 'seed');
+  await sub.recordPayment(principal, 'receipt', { party_id: cust, pay_date: isoDaysAgo(5), bank_account_id: codes.get('1010')!, method: 'bank', reference: 'Deposit', allocations: [{ document_id: i1.id, amount: '10000.00' }] }, 'seed');
+  const b1 = await sub.createDraft(principal, 'bill', { party_id: supp, doc_date: isoDaysAgo(10), lines: [line('6000', 'Flour and sugar', '12000.00', 'IN12')] }, 'seed');
+  await sub.postDocument(principal, 'bill', b1.id, 'seed');
+  await sub.createDraft(principal, 'invoice', { party_id: cust, doc_date: isoDaysAgo(1), lines: [line('4000', 'Draft: weekend event', '15000.00', 'OUT12')] }, 'seed');
+  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries and 4 invoices, bills and receipts; sign in as ${DEMO_EMAIL}`;
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` || process.argv[1]?.endsWith('seed-demo.ts')) {

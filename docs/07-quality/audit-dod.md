@@ -25,7 +25,7 @@ There is no Jira ticket, so the criteria come from the repo's own stories. Story
 
 **Approved as the foundation to build on. Not approved for production or for real customer data.**
 
-What was built since the first audit: the rest of M0 (self-service sign-up, e-mail confirmation, password reset, two-factor sign-in, sessions list, field-level encryption, data export and erasure, retention, security events), all of M1 (people and roles administration, custom roles, module subscriptions, platform-operator tools with read-only support sessions), plus two runbooks. **M2's remaining finance (vendor bills, customer invoices and payments, aging, VAT, year-end closing, multi-currency) and M3 to M7 (supply chain, production, HR and payroll, dashboards and platform, hardening) are not started.**
+What was built since the first audit: the rest of M0 (self-service sign-up, e-mail confirmation, password reset, two-factor sign-in, sessions list, field-level encryption, data export and erasure, retention, security events), all of M1 (people and roles administration, custom roles, module subscriptions, platform-operator tools with read-only support sessions), plus two runbooks. **M2's receivables and payables slice is now built (customers, suppliers, invoices, bills, receipts, payments, tax codes, aging, tax report; migration 006, 24 tests). Still open in M2: year-end closing, multi-currency, payment reversal and credit notes, bank reconciliation, PDF export and M3 to M7 (supply chain, production, HR and payroll, dashboards and platform, hardening) are not started.**
 
 Why it is still not ready:
 1. **Not deployed.** No live URL. Nothing has run on real Neon or Render (F-01, F-02).
@@ -181,7 +181,18 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-038 | Approval workflow | PASS | |
 | US-039 | Trial balance | PASS | |
 | US-040 | Income statement and balance sheet | PARTIAL | no PDF, no comparatives, no year-end close (earnings cumulative) |
-| US-046 | Gapless numbering | PASS | journal only |
+| US-046 | Gapless numbering | PASS | journal, invoices and bills each have a counter; a void keeps its number (`subledger.test.ts`) |
+
+### EPIC-04 Receivables and payables (M2 slice, migration 006)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-041 | Customers and suppliers | PASS | tax number encrypted, never listed, reveal is audited |
+| US-042 | Customer invoices (draft, post, void) | PASS | totals in integer units, cent rounding half up, balanced entry on post |
+| US-043 | Vendor bills | PASS | same engine, input tax side |
+| US-044 | Receipts and payments with allocation | PASS | partial, multi-document, over-allocation refused, concurrent receipts cannot over-collect, a trigger checks allocations sum to the payment |
+| US-045 | Tax codes and tax report | PASS | output and input codes, report nets them; drafts never count |
+| US-047 | Aging | PASS | five buckets, payments after the cut-off ignored, compared with the ledger control account |
+| US-048 | Subledger and ledger cannot drift | PASS | invoice, bill and payment entries cannot be reversed by hand (409); a void reverses the entry |
 
 Not started: EPIC-03 US-041 to 045 and 047 (bills, invoices, aging, currency, VAT, posting-rule engine); all of EPIC-04 (supply chain), EPIC-05 (production, HR, BI) and US-095 to 099 (import, export, API keys, webhooks, billing).
 
@@ -207,6 +218,8 @@ Not started: EPIC-03 US-041 to 045 and 047 (bills, invoices, aging, currency, VA
 ## Tests run (full inventory)
 
 ### Backend: 180 tests, all against real PostgreSQL
+Many are deliberate attack simulations; they are catalogued, with their gaps, in [security testing](../03-architecture/security-testing.md).
+
 | File | Tests | What it checks |
 |---|---|---|
 | `auth.test.ts` | 12 | sign-in shape and cookie flags; identical failures; lock-out; unverified; deactivated; hashed storage; forged and `alg=none` tokens; rotation, replay, CSRF header, logout, expiry |
@@ -298,6 +311,12 @@ Not started: EPIC-03 US-041 to 045 and 047 (bills, invoices, aging, currency, VA
 | F-23 | Motion, new screens and the mobile-first stylesheet were reviewed by type-check, lint, build and screenshots only; animations not watched at full motion | Low | Review in a browser; add Playwright |
 | F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
 | F-25 | No year-end closing, retained-earnings roll-forward, comparatives or PDF export | Medium | Build next in M2 |
+| F-35 | Invoices, bills and receipts are posted directly; they bypass the optional journal approval (approver is not the author) | Medium | Add approval to documents if a customer requires it |
+| F-36 | A payment cannot be undone yet (no payment reversal, credit notes, refunds or unapplied cash); a paid invoice cannot be voided | Medium | Next in M2 |
+| F-37 | Customer and supplier contact details (email, phone) are not yet in the data-subject export or the erasure routine | Medium | Extend DSAR and erasure to parties before any real customer data is entered |
+| F-38 | `npm audit` reports 3 moderate findings in `glob` and `minimatch`, pulled in by `node-pg-migrate` (a deploy-time tool, not on the request path) | Low | Update when the tool releases a fix; Dependabot is watching |
+| F-39 | The new pages (invoices, bills, aging, tax report) were checked by type-check, lint and build only, not in a browser | Low | Run them in the browser; add Playwright (F-11) |
+| F-40 | Tax codes have no effective dates, withholding, or per-line tax-inclusive pricing; amounts are PHP only | Low | Multi-currency and withholding in the next M2 step |
 | F-26 | Approval is single-level and per workspace | Low | Revisit if a customer needs more |
 | F-27 | A draft can be saved with a date in a closed period; blocked at submit and post | Low | Warn in the editor |
 | F-28 | A deactivated person's open access token works for up to 15 minutes | Low | Accepted; shorten or add a per-request check if required |

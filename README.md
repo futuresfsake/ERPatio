@@ -47,7 +47,7 @@ npm run dev                   # API on :8000
 # in a second terminal
 cd frontend && npm ci && npm run dev   # app on :5173, /api is proxied to :8000
 ```
-Run the checks: `npm run lint && npm run typecheck && npm test` in `backend/` and in `frontend/`. Backend tests need a PostgreSQL; set `TEST_DATABASE_URL` (see `backend/tests/config.ts`).
+Run the checks: `npm run lint && npm run typecheck && npm test` in `backend/` and in `frontend/`. The backend tests include automated attack simulations (cross-company access, token forgery, injection, ledger tampering); see [security testing](docs/03-architecture/security-testing.md). Backend tests need a PostgreSQL; set `TEST_DATABASE_URL` (see `backend/tests/config.ts`).
 
 ## Repository map
 ```
