@@ -1,0 +1,26 @@
+name: Reset demo workspace
+
+# Puts the public demo tenant back to its known state every night (ADR-008).
+# Needs the repository secret NEON_DIRECT_URL (the Neon DIRECT connection string). Synthetic data only.
+on:
+  schedule:
+    - cron: '0 18 * * *' # 02:00 in Manila
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci
+      - run: npm run seed:demo -- --reset
+        env:
+          NODE_ENV: development # the script refuses to touch any tenant that is not flagged is_demo
+          DATABASE_URL: ${{ secrets.NEON_DIRECT_URL }}
+          DATABASE_URL_DIRECT: ${{ secrets.NEON_DIRECT_URL }}

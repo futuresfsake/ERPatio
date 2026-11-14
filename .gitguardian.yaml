@@ -1,0 +1,7 @@
+# GitGuardian configuration. Exceptions are as narrow as possible and explained.
+version: 2
+secret:
+  ignored-matches:
+    # The public demo workspace password is published on purpose (ADR-008). It protects synthetic data only.
+    - name: Public demo workspace password
+      match: ERPatio-Demo-2026

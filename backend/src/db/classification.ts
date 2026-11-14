@@ -1,0 +1,37 @@
+/**
+ * Data classification register (FR-PRV-01, ADR-005). A test compares this map with the live schema,
+ * so a new column cannot be merged without being classified.
+ */
+export type Classification = 'public' | 'internal' | 'confidential' | 'personal' | 'sensitive_personal';
+
+const t = (table: string, cls: Classification, cols: string[]): [string, Classification][] =>
+  cols.map((c) => [`${table}.${c}`, cls]);
+
+export const CLASSIFICATION: Record<string, Classification> = Object.fromEntries([
+  ...t('tenants', 'internal', ['id', 'slug', 'name', 'status', 'is_demo', 'base_currency', 'created_at']),
+  ...t('users', 'internal', ['id', 'tenant_id', 'is_active', 'email_verified', 'failed_attempts', 'locked_until', 'last_login_at', 'created_at']),
+  ...t('users', 'personal', ['email', 'full_name']),
+  ...t('users', 'confidential', ['password_hash']),
+  ...t('roles', 'internal', ['id', 'tenant_id', 'name', 'is_system']),
+  ...t('role_permissions', 'internal', ['role_id', 'permission', 'tenant_id']),
+  ...t('user_roles', 'internal', ['user_id', 'role_id', 'tenant_id']),
+  ...t('refresh_tokens', 'internal', ['id', 'tenant_id', 'user_id', 'family_id', 'expires_at', 'revoked_at', 'replaced_by', 'created_at']),
+  ...t('refresh_tokens', 'confidential', ['token_hash']),
+  ...t('refresh_tokens', 'personal', ['ip', 'user_agent']),
+  ...t('audit_log', 'internal', ['id', 'tenant_id', 'occurred_at', 'actor_user_id', 'action', 'entity_type', 'entity_id', 'detail']),
+  ...t('audit_log', 'personal', ['ip']),
+  ...t('tenant_counters', 'internal', ['tenant_id', 'journal_seq']),
+  ...t('accounts', 'internal', ['id', 'tenant_id', 'is_active', 'created_at']),
+  ...t('accounts', 'confidential', ['code', 'name', 'type']),
+  ...t('journal_entries', 'internal', ['id', 'tenant_id', 'reverses_entry_id', 'created_by', 'created_at']),
+  ...t('journal_entries', 'confidential', ['entry_no', 'entry_date', 'description', 'reference']),
+  ...t('journal_lines', 'internal', ['id', 'tenant_id', 'entry_id', 'line_no', 'account_id']),
+  ...t('journal_lines', 'confidential', ['debit', 'credit', 'memo']),
+  ...t('journal_entries', 'internal', ['posted_by', 'approved_by']),
+  ...t('tenant_settings', 'internal', ['tenant_id', 'require_approval', 'updated_at']),
+  ...t('fiscal_periods', 'internal', ['id', 'tenant_id', 'year', 'month', 'start_date', 'end_date', 'status', 'closed_at', 'closed_by']),
+  ...t('journal_drafts', 'internal', ['id', 'tenant_id', 'status', 'created_by', 'created_at', 'updated_at', 'submitted_at']),
+  ...t('journal_drafts', 'confidential', ['entry_date', 'description', 'reference', 'rejection_note']),
+  ...t('journal_draft_lines', 'internal', ['id', 'tenant_id', 'draft_id', 'line_no', 'account_id']),
+  ...t('journal_draft_lines', 'confidential', ['debit', 'credit', 'memo']),
+]);

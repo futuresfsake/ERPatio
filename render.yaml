@@ -1,0 +1,38 @@
+# Render Blueprint (ADR-007). One web service: Express API + the built React app on the same origin.
+# Neon hosts PostgreSQL; its connection strings are secrets, entered in the Render dashboard.
+services:
+  - type: web
+    name: erpatio
+    runtime: node
+    plan: free
+    region: singapore # closest to the Philippines; keep the Neon project in the same region (ap-southeast-1)
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    buildCommand: >-
+      cd frontend && npm ci && npm run build &&
+      cd ../backend && npm ci --include=dev && npm run build
+    # Migrations run on every start (pre-deploy commands are not available on the free plan).
+    # They are idempotent and use the DIRECT Neon URL.
+    startCommand: cd backend && npm run migrate && node dist/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY # Render puts one proxy in front; needed for correct client IPs and rate limits
+        value: 1
+      - key: COOKIE_SECURE
+        value: true
+      - key: DOCS_ENABLED # serves /api/v1/openapi.json; set false once the demo is retired
+        value: true
+      - key: STATIC_DIR
+        value: ../frontend/dist
+      - key: DEMO_MAX_ENTRIES
+        value: 100
+      - key: JWT_SECRET # generated once by Render (random, 256-bit); rotate with JWT_SECRET_PREVIOUS
+        generateValue: true
+      - key: DATABASE_URL # Neon POOLED string (host contains "-pooler")
+        sync: false
+      - key: DATABASE_URL_DIRECT # Neon DIRECT string, used by migrations
+        sync: false

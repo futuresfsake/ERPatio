@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERPatio · design prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Young+Serif&display=swap" rel="stylesheet">
+<meta name="description" content="Clickable design prototype of ERPatio. Synthetic data; nothing is saved.">
+<style>
+/*
+  ERPatio: the interface is a bound ledger.
+  Cream paper, ruled columns, a red margin line, ink for everything that matters, one stamp.
+  Palette: paper #F1EBDD · sheet #F8F4E9 · ink #1B2430 · oxblood #A3321F (rare) · rules #CDC4AD / #A89F88
+  Type: Young Serif (titles) · IBM Plex Sans (text) · IBM Plex Mono (figures, codes, labels)
+  Geometry: 2px radius, no drop shadows. Rules and spacing carry the structure.
+  Written mobile-first: the base styles are the phone layout; @media (min-width: 861px) adds the desktop one.
+  Motion lives in one block at the end and switches off for prefers-reduced-motion.
+*/
+:root {
+  --paper: #f1ebdd;
+  --sheet: #f8f4e9;
+  --ink: #1b2430;
+  --ink-soft: #2c3849;
+  --muted: #5a5f68;
+  --rule: #cdc4ad;
+  --rule-strong: #a89f88;
+  --hover: #e8e0ce;
+  --accent: #a3321f;
+  --on-ink: #ece5d3;
+  --on-ink-muted: #9298a4;
+  --r: 2px;
+  --serif: 'Young Serif', 'Iowan Old Style', Georgia, serif;
+  --sans: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14px/1.5 var(--sans); }
+::selection { background: var(--ink); color: var(--paper); }
+h1, h2, h3 { margin: 0; font-weight: 400; }
+h1 { font-family: var(--serif); font-size: 26px; line-height: 1.1; letter-spacing: -0.02em; }
+h2 { font: 600 12.5px/1.3 var(--sans); color: var(--muted); }
+h3 { font-family: var(--serif); font-size: 20px; letter-spacing: -0.01em; }
+p { margin: 0; }
+a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--rule-strong); transition: text-decoration-color 0.12s; }
+a:hover { text-decoration-color: var(--ink); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.rail :focus-visible, .signin-side :focus-visible { outline-color: var(--on-ink); }
+button { font: inherit; }
+kbd { font: 500 10.5px var(--mono); border: 1px solid currentColor; border-radius: var(--r); padding: 0 4px; opacity: 0.75; }
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+.muted { color: var(--muted); }
+.red { color: var(--accent); }
+.num { text-align: right; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hide-sm { display: none; }
+
+/* ================= frame: phone first ================= */
+.app { display: block; min-height: 100vh; }
+.topbar-sm { display: flex; justify-content: space-between; align-items: center; background: var(--ink); color: var(--on-ink); padding: 11px 16px; position: sticky; top: 0; z-index: 30; }
+.topbar-sm .wordmark { padding: 0; font-size: 20px; }
+.topbar-sm button { background: none; border: 1px solid var(--on-ink-muted); color: var(--on-ink); border-radius: var(--r); height: 32px; padding: 0 14px; cursor: pointer; transition: background 0.12s; }
+.topbar-sm button:active { background: var(--ink-soft); }
+
+.rail { background: var(--ink); color: var(--on-ink); padding: 22px 0 16px; display: flex; flex-direction: column; position: fixed; inset: 0 auto 0 0; width: 248px; z-index: 40; overflow-y: auto; transform: translateX(-102%); transition: transform 0.18s ease-out; }
+.rail.open { transform: none; }
+.wordmark { font-family: var(--serif); font-size: 23px; letter-spacing: -0.02em; padding: 0 20px; line-height: 1; }
+.rail-ws { padding: 10px 20px 18px; font-size: 12px; line-height: 1.4; color: var(--on-ink-muted); border-bottom: 1px solid #36425a; margin-bottom: 4px; }
+.rail-ws b { display: block; color: var(--on-ink); font-weight: 500; }
+.rail nav { display: grid; }
+.rail .label { font: 500 11.5px var(--sans); color: var(--on-ink-muted); padding: 16px 20px 5px; }
+.rail a { display: block; padding: 9px 20px; color: var(--on-ink); text-decoration: none; transition: background 0.12s, padding-left 0.12s; }
+.rail a[aria-current='page'] { background: var(--ink-soft); box-shadow: inset 3px 0 0 var(--on-ink); font-weight: 500; }
+.rail a.later { color: var(--on-ink-muted); pointer-events: none; }
+.rail-foot { margin-top: auto; padding: 16px 20px 0; font-size: 12px; color: var(--on-ink-muted); display: grid; gap: 8px; border-top: 1px solid #36425a; }
+.rail-foot button { text-align: left; background: none; border: 0; padding: 0; color: var(--on-ink); cursor: pointer; text-decoration: underline; text-decoration-color: var(--on-ink-muted); text-underline-offset: 3px; width: fit-content; }
+.rail-foot select { font-size: 12px; background: var(--ink-soft); color: var(--on-ink); border-color: #36425a; }
+
+.main { min-width: 0; position: relative; }
+/* the margin rule: a double red line down the left of every page, like ruled ledger paper */
+.main::before { content: ''; position: absolute; z-index: 0; left: 12px; top: 0; bottom: 0; width: 4px; border-left: 1px solid var(--accent); border-right: 1px solid var(--accent); opacity: 0.5; }
+.page { padding: 18px 14px 48px 28px; max-width: 1140px; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--ink); margin-bottom: 20px; }
+.page-head .sub { color: var(--muted); margin-top: 6px; max-width: 60ch; }
+.page-head .actions { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; } /* labelled inputs and plain buttons share a bottom edge */
+.crumb { font: 400 11px var(--mono); color: var(--muted); margin-bottom: 8px; letter-spacing: 0.04em; }
+
+/* ================= tables: ruled columns ================= */
+.tbl-wrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--r); }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 10px; text-align: left; vertical-align: baseline; }
+th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); border-bottom: 1px solid var(--ink); white-space: nowrap; }
+td { border-bottom: 1px solid var(--rule); }
+tbody tr:last-child td { border-bottom: 0; }
+th.num, td.num { text-align: right; border-left: 1px solid var(--rule); }
+tr.link { cursor: pointer; }
+tr.link:active td { background: var(--hover); }
+tr.group td { padding-top: 16px; font: 600 12.5px var(--sans); color: var(--muted); }
+tr.off td { color: var(--muted); }
+tr.off td.name { text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 3px double var(--ink); padding-top: 8px; padding-bottom: 8px; }
+td.code, th.code { width: 76px; font-family: var(--mono); font-size: 12.5px; }
+td.ref { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.empty { padding: 30px 14px; color: var(--muted); }
+.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar .grow { flex: 1; }
+.pager { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--rule-strong); color: var(--muted); font: 400 12px var(--mono); }
+
+/* ================= forms and buttons ================= */
+label { font: 500 13px var(--sans); display: block; margin-bottom: 5px; color: var(--ink); }
+.hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.field-error { color: var(--accent); font-size: 13px; margin-top: 4px; font-weight: 500; }
+/* 16px on phones stops iOS zooming into the field; desktop drops to 14px below */
+input, select, textarea { font: 400 16px var(--sans); color: var(--ink); background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 0 9px; height: 40px; width: 100%; transition: border-color 0.12s; }
+input::placeholder { color: var(--muted); opacity: 0.7; }
+input:focus, select:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+input[aria-invalid='true'] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border: 1px solid var(--ink); border-radius: var(--r); background: transparent; color: var(--ink); cursor: pointer; text-decoration: none; white-space: nowrap; font-weight: 500; transition: background 0.12s, color 0.12s, opacity 0.12s; }
+.btn:active:not(:disabled) { transform: translateY(1px); background: var(--hover); }
+.btn.primary { background: var(--ink); color: var(--paper); }
+.btn.primary:active:not(:disabled) { background: var(--ink-soft); }
+.btn.danger { color: var(--accent); border-color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary:disabled { background: transparent; color: var(--muted); border-color: var(--rule-strong); opacity: 1; }
+.linkbtn { background: none; border: 0; padding: 4px 0; color: var(--ink); cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; transition: text-decoration-color 0.12s; }
+.linkbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.formrow { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.formrow > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; } /* description gets the full width on a phone */
+.notice { border: 1px solid var(--rule-strong); border-left: 4px solid var(--ink); background: var(--sheet); padding: 9px 14px; border-radius: var(--r); }
+.notice.error { border-left-color: var(--accent); }
+
+/* ================= reading blocks ================= */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; align-items: start; }
+.statement { background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 4px 16px 12px; }
+.statement h2 { padding: 14px 0 5px; }
+.statement .ln { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
+.statement .ln .num { border: 0; }
+.statement .ln .dots { flex: 1; border-bottom: 1px dotted var(--rule-strong); transform: translateY(-3px); min-width: 12px; }
+.statement .ln.sum { font-weight: 600; border-top: 1px solid var(--ink); margin-top: 4px; padding-top: 5px; }
+.statement .ln.sum .dots { visibility: hidden; }
+.statement .asof { color: var(--muted); font-size: 12px; padding: 10px 0 0; }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 5px 20px; margin: 0 0 20px; }
+dl.kv dt { font: 400 13px var(--sans); color: var(--muted); }
+dl.kv dd { margin: 0; }
+.check { margin-top: 14px; color: var(--muted); font-size: 13px; }
+.check.bad { color: var(--accent); font-weight: 600; }
+
+.tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--rule-strong); margin-bottom: 14px; flex-wrap: wrap; }
+.tabs a { padding: 8px 0; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a[aria-current='true'] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 500; }
+.statement .ln .mono { font-size: 12px; margin-right: 4px; }
+
+/* data block: where the assets sit. A ruled bar in shades of ink: no chart library, no colour. */
+.assets { margin-bottom: 26px; }
+.assetbar { display: flex; gap: 2px; height: 16px; margin: 8px 0 12px; border-bottom: 1px solid var(--ink); }
+.assetbar i { display: block; height: 100%; background: var(--ink); transform-origin: left; transition: opacity 0.15s; min-width: 2px; }
+.assetbar:hover i:not(:hover) { opacity: 0.3 !important; }
+.assetlegend { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font: 400 12px var(--mono); }
+.assetlegend li { display: flex; align-items: baseline; gap: 8px; }
+.assetlegend li::before { content: ''; flex: none; width: 10px; height: 10px; background: var(--ink); opacity: var(--o, 1); align-self: center; }
+.assetlegend .nm { flex: 1; }
+.assetlegend .pc { color: var(--muted); width: 44px; text-align: right; }
+
+/* the stamp: posted and reversed entries carry it */
+.stamp { display: inline-block; font: 500 12px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); border: 2px solid var(--accent); padding: 7px 10px 6px; border-radius: var(--r); transform: rotate(-2.5deg); white-space: nowrap; opacity: 0.95; }
+.stamp.reversed { transform: rotate(1.5deg); text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* ================= voucher: the entry editor ================= */
+.voucher { background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--r); }
+.voucher .top { padding: 14px; border-bottom: 1px solid var(--ink); }
+.voucher table td, .voucher table th { padding: 5px 6px; }
+.voucher td.amt { border-left: 1px solid var(--rule); }
+.voucher td.amt input { text-align: right; font-family: var(--mono); font-size: 16px; }
+.voucher td.rm { width: 30px; text-align: center; }
+.voucher .below { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--rule); font-size: 13px; flex-wrap: wrap; }
+.voucher .foot { display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--ink); }
+.voucher .foot .actions-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.sums { display: flex; gap: 16px; }
+.sums div { text-align: right; }
+.sums span { display: block; font: 400 12px var(--sans); color: var(--muted); }
+.sums strong { font: 500 16px var(--mono); transition: color 0.2s; }
+.balanced-note { font: 500 12px var(--mono); color: var(--ink); }
+
+/* ================= sign in: form first on a phone, ledger page below it ================= */
+.signin { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr); }
+.signin-pane { position: relative; padding: 34px 22px 28px 44px; display: flex; flex-direction: column; background-color: var(--paper); background-image: repeating-linear-gradient(to bottom, transparent 0 31px, color-mix(in srgb, var(--rule) 38%, transparent) 31px 32px); }
+.signin-pane::before { content: ''; position: absolute; left: 26px; top: 0; bottom: 0; width: 4px; border-left: 1px solid var(--accent); border-right: 1px solid var(--accent); opacity: 0.5; }
+.signin-pane form { margin-top: 32px; display: grid; gap: 16px; max-width: 340px; }
+.signin-pane .foot { margin-top: 26px; color: var(--muted); font: 400 12px var(--sans); }
+.signin-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--ink); padding-top: 14px; margin-top: 2px; }
+.signin-actions span { color: var(--muted); font-size: 12px; }
+.codefield { display: flex; border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--sheet); transition: border-color 0.12s; }
+.codefield:focus-within { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.codefield.bad { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.codefield .pre { display: flex; align-items: center; padding: 0 10px; border-right: 1px solid var(--rule); font: 500 12.5px var(--mono); color: var(--muted); }
+.codefield input { border: 0; box-shadow: none; background: transparent; height: 38px; font-family: var(--mono); letter-spacing: 0.01em; }
+.codefield input:focus { box-shadow: none; }
+.demo { margin-top: 26px; max-width: 340px; border-top: 1px solid var(--rule-strong); padding-top: 14px; font-size: 13px; color: var(--muted); }
+.demo b { color: var(--ink); font-weight: 600; }
+.demo dl { margin: 10px 0; display: grid; grid-template-columns: 76px 1fr; gap: 3px 8px; }
+.demo dt { font: 400 12.5px var(--sans); color: var(--muted); }
+.demo dd { margin: 0; font: 400 12.5px var(--mono); color: var(--ink); user-select: all; overflow-wrap: anywhere; }
+.signin-side { background: var(--ink); color: var(--on-ink); padding: 32px 24px; display: flex; flex-direction: column; justify-content: flex-start; gap: 24px; order: 2; }
+.signin-side p.lead { font-family: var(--serif); font-size: 24px; line-height: 1.18; letter-spacing: -0.02em; }
+.signin-side p.lead span { display: block; text-wrap: balance; max-width: 40ch; }
+.signin-side p.lead span + span { margin-top: 0.35em; }
+.sample { font: 400 12px/1.9 var(--mono); max-width: 560px; width: 100%; }
+.sample .r { display: grid; grid-template-columns: 30px minmax(0, 1fr) 96px 96px; border-bottom: 1px solid #36425a; }
+.sample .r span { padding: 1px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sample .r span:nth-child(n + 3) { overflow: visible; } /* figures are never truncated */
+.sample .r span:nth-child(n + 3) { text-align: right; border-left: 1px solid #36425a; }
+.sample .r.h { text-transform: uppercase; letter-spacing: 0.1em; font-size: 10.5px; color: var(--on-ink-muted); border-bottom-color: var(--on-ink-muted); }
+.sample .r.t { border-top: 1px solid var(--on-ink); border-bottom: 3px double var(--on-ink); font-weight: 500; margin-top: 2px; }
+.sample .cap { color: var(--on-ink-muted); font-size: 11.5px; margin-top: 10px; }
+
+dialog { border: 1px solid var(--ink); border-radius: var(--r); padding: 22px; background: var(--sheet); color: var(--ink); width: min(430px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(27, 36, 48, 0.55); }
+dialog h3 { margin-bottom: 12px; }
+dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.stack { display: grid; gap: 14px; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 9px 16px; border-radius: var(--r); z-index: 60; font: 400 12.5px var(--mono); }
+.loading { color: var(--muted); font: 400 12.5px var(--mono); padding: 6px 0; }
+.loading::after { content: ''; display: inline-block; width: 7px; height: 13px; background: var(--ink); margin-left: 4px; vertical-align: -2px; }
+
+/* ================= desktop: from 861px up ================= */
+@media (min-width: 861px) {
+  h1 { font-size: 30px; }
+  .app { display: grid; grid-template-columns: 216px minmax(0, 1fr); }
+  .topbar-sm { display: none; }
+  .rail { position: sticky; top: 0; inset: auto; width: auto; height: 100vh; transform: none; transition: none; z-index: 1; }
+  .rail a { padding: 6px 20px; }
+  .main::before { left: 38px; }
+  .page { padding: 26px 36px 64px 56px; }
+  .page-head { gap: 18px; }
+  th, td { padding: 7px 12px; }
+  td.code, th.code { width: 88px; }
+  .hide-sm { display: table-cell; }
+  input, select, textarea { font-size: 14px; height: 34px; }
+  .voucher td.amt input { font-size: 13px; }
+  .btn { height: 34px; padding: 0 15px; }
+  .formrow { grid-template-columns: 150px 1fr 190px; gap: 16px; }
+  .formrow > :nth-child(2) { grid-column: auto; grid-row: auto; }
+  .cols { grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: 44px; }
+  .statement { padding: 4px 18px 12px; }
+  .voucher .top { padding: 16px; }
+  .voucher .foot { flex-direction: row; align-items: center; justify-content: space-between; padding: 12px 16px; }
+  .voucher .foot .actions-row { justify-content: flex-end; }
+  .sums { gap: 28px; }
+  dl.kv { gap: 5px 26px; }
+  .signin { grid-template-columns: minmax(360px, 5fr) 7fr; }
+  .signin-pane { padding: 56px 48px 40px 64px; }
+  .signin-pane form { margin-top: 40px; }
+  .signin-pane::before { left: 46px; }
+  .signin-side { order: 0; padding: 120px 56px 56px; gap: 28px; } /* top = wordmark + gap, so the headline lines up with "Sign in" */
+  .signin-side p.lead { font-size: 30px; }
+  .sample { font-size: 12.5px; }
+  .sample .r { grid-template-columns: 44px minmax(0, 1fr) 108px 108px; }
+  .sample .r span { padding: 1px 10px; }
+  .codefield input { height: 32px; }
+}
+
+/* ================= hover is for pointers; touch gets :active instead ================= */
+@media (hover: hover) {
+  .rail a:hover { background: var(--ink-soft); padding-left: 24px; }
+  tr.link:hover td { background: var(--hover); }
+  tr.link:hover td:first-child { box-shadow: inset 3px 0 0 var(--ink); }
+  .btn:hover:not(:disabled) { background: var(--hover); }
+  .btn.primary:hover:not(:disabled) { background: var(--ink-soft); }
+  .btn.danger:hover:not(:disabled) { background: var(--accent); color: var(--paper); }
+  .linkbtn:hover:not(:disabled) { text-decoration-color: var(--ink); }
+  input:hover:not(:focus), select:hover:not(:focus) { border-color: var(--ink); }
+}
+@media (hover: none) { kbd { display: none; } }
+
+/* ================= motion: purposeful, short, and off when asked ================= */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  @keyframes blink { to { visibility: hidden; } }
+  /* the stamp lands on the page when an entry is posted or reversed */
+  @keyframes thunk {
+    0% { opacity: 0; transform: scale(1.7) rotate(-9deg); }
+    55% { opacity: 1; transform: scale(0.95) rotate(-2.5deg); }
+    75% { transform: scale(1.02) rotate(-2.5deg); }
+    100% { opacity: 0.95; transform: scale(1) rotate(-2.5deg); }
+  }
+  .stamp.thunk { animation: thunk 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 0.15s both; }
+
+  .page > * { animation: rise 0.32s ease-out both; }
+  .page > :nth-child(2) { animation-delay: 0.04s; }
+  .page > :nth-child(3) { animation-delay: 0.08s; }
+  .page > :nth-child(4) { animation-delay: 0.12s; }
+  .tbl-wrap tbody tr { animation: fade 0.3s ease-out both; }
+  .tbl-wrap tbody tr:nth-child(2) { animation-delay: 0.03s; }
+  .tbl-wrap tbody tr:nth-child(3) { animation-delay: 0.06s; }
+  .tbl-wrap tbody tr:nth-child(4) { animation-delay: 0.09s; }
+  .tbl-wrap tbody tr:nth-child(5) { animation-delay: 0.12s; }
+  .tbl-wrap tbody tr:nth-child(6) { animation-delay: 0.15s; }
+  .tbl-wrap tbody tr:nth-child(7) { animation-delay: 0.18s; }
+  .tbl-wrap tbody tr:nth-child(n + 8) { animation-delay: 0.21s; }
+  .assetbar i { animation: grow 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .assetbar i:nth-child(2) { animation-delay: 0.06s; }
+  .assetbar i:nth-child(3) { animation-delay: 0.12s; }
+  .assetbar i:nth-child(4) { animation-delay: 0.18s; }
+  .assetbar i:nth-child(5) { animation-delay: 0.24s; }
+  .signin-side p.lead { animation: rise 0.5s ease-out 0.1s both; }
+  .sample .r { animation: draw 0.5s ease-out both; }
+  .sample .r:nth-child(1) { animation-delay: 0.25s; }
+  .sample .r:nth-child(2) { animation-delay: 0.4s; }
+  .sample .r:nth-child(3) { animation-delay: 0.55s; }
+  .sample .r:nth-child(4) { animation-delay: 0.7s; }
+  .sample .cap { animation: fade 0.5s ease-out 0.9s both; }
+  .toast { animation: fade 0.2s ease-out both; }
+  dialog[open] { animation: rise 0.18s ease-out both; }
+  .loading::after { animation: blink 1s steps(2, start) infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail, .rail a, .btn, input, select, a, .linkbtn { transition: none; }
+}
+
+.proto { background: var(--ink); color: var(--paper); font-size: 12px; padding: 5px 14px; display: flex; gap: 14px; justify-content: space-between; }
+.proto a { color: inherit; }
+#app .rail { height: calc(100vh - 28px); }
+</style>
+</head>
+<body>
+<div class="proto" role="note"><span>Design prototype. Synthetic data, nothing is saved; reload to reset.</span><span>Sign in with the demo credentials shown on the first screen.</span></div>
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+'use strict';
+// Money is held as integer cents. Negative figures print in parentheses, as on a paper ledger.
+const toCents = (s) => { const m = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(String(s).trim().replace(/,/g, '')); return m ? BigInt(m[1]) * 100n + BigInt((m[2] || '').padEnd(2, '0')) : null; };
+const grp = (w) => w.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const n = (c) => { const neg = c < 0n; const s = (neg ? -c : c).toString().padStart(3, '0'); const t = grp(s.slice(0, -2)) + '.' + s.slice(-2); return neg ? `(${t})` : t; };
+const peso = (c) => '₱' + n(c);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const iso = (d) => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
+const longDate = (s) => new Date(s + 'T00:00').toLocaleDateString('en-PH', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const TYPES = { asset: 'Assets', liability: 'Liabilities', equity: 'Equity', revenue: 'Revenue', expense: 'Expenses' };
+const accounts = [['1000','Cash on Hand','asset'],['1010','Cash in Bank','asset'],['1100','Accounts Receivable','asset'],['1200','Inventory','asset'],['1500','Equipment','asset'],
+ ['2000','Accounts Payable','liability'],['2100','VAT Payable','liability'],['3000',"Owner's Capital",'equity'],['3100','Retained Earnings','equity'],
+ ['4000','Sales Revenue','revenue'],['4100','Other Income','revenue'],['5000','Cost of Goods Sold','expense'],['6000','Rent Expense','expense'],
+ ['6100','Salaries Expense','expense'],['6200','Utilities Expense','expense'],['6300','Office Supplies Expense','expense']].map(([code, name, type]) => ({ code, name, type, active: true }));
+const E = (d, desc, ref, ls) => ({ date: iso(d), desc, ref, lines: ls.map(([a, dr, cr]) => ({ a, dr: BigInt(dr) * 100n, cr: BigInt(cr) * 100n })) });
+const entries = [
+ E(90,'Owner capital investment','CAP-001',[['1010',1000000,0],['3000',0,1000000]]),
+ E(88,'Purchase of delivery van','FA-001',[['1500',250000,0],['1010',0,250000]]),
+ E(85,'Inventory purchase on credit','PO-1001',[['1200',400000,0],['2000',0,400000]]),
+ E(60,'Sale on account, Santos Hardware','INV-2001',[['1100',336000,0],['4000',0,300000],['2100',0,36000]]),
+ E(60,'Cost of goods sold, INV-2001','INV-2001',[['5000',180000,0],['1200',0,180000]]),
+ E(45,'Payment received, Santos Hardware','OR-3001',[['1010',336000,0],['1100',0,336000]]),
+ E(40,'Supplier payment, PO-1001','CHK-0101',[['2000',200000,0],['1010',0,200000]]),
+ E(30,'Office rent','RENT-10',[['6000',45000,0],['1010',0,45000]]),
+ E(30,'Payroll','PAY-10',[['6100',120000,0],['1010',0,120000]]),
+ E(20,'Cash sale, walk-in','INV-2002',[['1000',112000,0],['4000',0,100000],['2100',0,12000]]),
+ E(20,'Cost of goods sold, INV-2002','INV-2002',[['5000',60000,0],['1200',0,60000]]),
+ E(10,'Electricity and water','UTIL-10',[['6200',8500,0],['1010',0,8500]]),
+ E(5,'Office supplies','PC-0005',[['6300',3200,0],['1000',0,3200]]),
+ E(2,'Cash deposit to bank','DEP-0002',[['1010',100000,0],['1000',0,100000]]),
+].map((e, i) => ({ ...e, no: i + 1, reversedBy: null, reverses: null }));
+const audit = [{ t: 'Today 09:12', a: 'auth.login', d: 'Demo Accountant signed in' }, { t: iso(2) + ' 16:40', a: 'journal.posted', d: 'JE-14, 100,000.00' }];
+let role = 'DemoUser', session = false, tbDate = iso(0), fresh = false;
+const canPost = () => role !== 'Viewer', canAudit = () => role === 'DemoUser';
+const acct = (c) => accounts.find((a) => a.code === c);
+const bal = (asOf = '9999') => { const m = {}; for (const e of entries) if (e.date <= asOf) for (const l of e.lines) m[l.a] = (m[l.a] || 0n) + l.dr - l.cr; return m; };
+const sumT = (t, b) => accounts.filter((a) => t.includes(a.type)).reduce((s, a) => s + (b[a.code] || 0n), 0n);
+const total = (e) => e.lines.reduce((s, l) => s + l.dr, 0n);
+const $ = (s, r = document) => r.querySelector(s);
+
+const NAV = [['dashboard', 'Overview'], ['accounts', 'Chart of accounts'], ['journal', 'Journal'], ['trial-balance', 'Trial balance'], ['audit', 'Audit log']];
+function frame(active, title, sub, actions, body, crumb) {
+  const links = NAV.filter(([k]) => k !== 'audit' || canAudit()).map(([k, l]) => `<a href="#/${k}" ${active === k ? 'aria-current="page"' : ''}>${l}</a>`).join('');
+  return `<div class="app"><aside class="rail" id="rail" aria-label="Main">
+   <div class="wordmark">ERPatio</div>
+   <div class="rail-ws"><b>Casa Verde Trading Corp.</b>Demo workspace · PHP</div>
+   <nav><div class="label">Finance</div>${links}<div class="label">Later</div><a class="later">Inventory</a><a class="later">Production</a><a class="later">Payroll</a></nav>
+   <div class="rail-foot"><div>Demo Accountant<br>${esc(role)}</div>
+    <label class="sr-only" for="role">Preview as</label><select id="role"><option value="DemoUser" ${role==='DemoUser'?'selected':''}>View as: Demo user</option><option value="Accountant" ${role==='Accountant'?'selected':''}>View as: Accountant</option><option value="Viewer" ${role==='Viewer'?'selected':''}>View as: Viewer</option></select>
+    <a href="#/login" style="padding:0">Sign out</a></div></aside>
+  <div class="main"><header class="topbar-sm"><span class="wordmark">ERPatio</span><button id="menu">Menu</button></header>
+   <main class="page"><div class="page-head"><div>${crumb ? `<div class="crumb">${crumb}</div>` : ''}<h1>${title}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div><div class="actions">${actions || ''}</div></div>${body}</main></div></div>`;
+}
+
+const OP = [1, 0.72, 0.5, 0.3, 0.16];
+function assetBlock(b) {
+  const held = accounts.filter((a) => a.type === 'asset' && (b[a.code] || 0n) > 0n).map((a) => ({ n: a.name, v: b[a.code] })).sort((x, y) => (y.v > x.v ? 1 : -1));
+  const tot = held.reduce((s, r) => s + r.v, 0n); if (!tot) return '';
+  const pc = (v) => Number((v * 10000n) / tot) / 100;
+  return `<div class="assets"><h2>Where the assets sit</h2><div class="assetbar" role="img" aria-label="Asset mix">${held.map((r, i) => `<i title="${esc(r.n)} ${pc(r.v).toFixed(1)}%" style="flex:${pc(r.v)} 0 0;opacity:${OP[Math.min(i, 4)]}"></i>`).join('')}</div>
+   <ul class="assetlegend">${held.map((r, i) => `<li style="--o:${OP[Math.min(i, 4)]}"><span class="nm">${esc(r.n)}</span><span>${n(r.v)}</span><span class="pc">${pc(r.v).toFixed(0)}%</span></li>`).join('')}</ul></div>`;
+}
+
+const S = {
+ login() {
+  return `<div class="signin"><section class="signin-pane"><div class="wordmark" style="padding:0;font-size:24px">ERPatio</div>
+   <form id="login" novalidate><div><h1 style="font-size:20px">Sign in</h1><p class="muted" style="margin-top:3px">Use your company workspace code.</p></div>
+    <div><label for="ws">Workspace</label><div class="codefield" id="wsf"><span class="pre" aria-hidden="true">ws</span><input id="ws" autocomplete="organization" spellcheck="false" autocapitalize="none" placeholder="company-code"></div><div class="field-error" id="e-ws" role="alert"></div></div>
+    <div><label for="em">Email</label><input id="em" type="email" autocomplete="username"><div class="field-error" id="e-em" role="alert"></div></div>
+    <div><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="field-error" id="e-pw" role="alert"></div></div>
+    <div id="lerr" class="notice error" role="alert" hidden>Invalid workspace, email or password.</div>
+    <div class="signin-actions"><span>Sessions last 7 days.</span><button class="btn primary" type="submit">Sign in <kbd style="color:inherit;border-color:currentColor;opacity:.7">↵</kbd></button></div></form>
+    <div class="demo"><b>Public demo.</b> Synthetic data, reset every night. Anyone can sign in.
+     <dl><dt>Workspace</dt><dd>casa-verde-demo</dd><dt>Email</dt><dd>demo@erpatio.app</dd><dt>Password</dt><dd>ERPatio-Demo-2026</dd></dl>
+     <button class="linkbtn" type="button" id="fill">Fill these in</button></div>
+    <div class="foot">Version 0.1</div></section>
+   <section class="signin-side" aria-hidden="true"><p class="lead"><span>An entry balances before it is saved.</span><span>A mistake is reversed, never edited.</span></p><div class="sample">
+    <div class="r h"><span>JE</span><span>Account</span><span>Debit</span><span>Credit</span></div>
+    <div class="r"><span>14</span><span>1010 Cash in Bank</span><span>100,000.00</span><span></span></div>
+    <div class="r"><span></span><span>1000 Cash on Hand</span><span></span><span>100,000.00</span></div>
+    <div class="r"><span>13</span><span>6300 Office Supplies</span><span>3,200.00</span><span></span></div>
+    <div class="r"><span></span><span>1000 Cash on Hand</span><span></span><span>3,200.00</span></div>
+    <div class="r"><span>12</span><span>6200 Utilities</span><span>8,500.00</span><span></span></div>
+    <div class="r"><span></span><span>1010 Cash in Bank</span><span></span><span>8,500.00</span></div>
+    <div class="r t"><span></span><span>Total</span><span>111,700.00</span><span>111,700.00</span></div>
+    <div class="cap">Casa Verde Trading Corp. · journal, November 2026 · every pair balances</div></div></section></div>`;
+ },
+ dashboard() {
+  const b = bal(), A = (c) => b[c] || 0n;
+  const assets = sumT(['asset'], b), liab = -sumT(['liability'], b), earn = -sumT(['revenue', 'expense'], b), eq = -sumT(['equity'], b) + earn;
+  const ln = (l, v, cls = '') => `<div class="ln ${cls}"><span>${l}</span><span class="dots"></span><span class="num">${n(v)}</span></div>`;
+  const recent = [...entries].reverse().slice(0, 7).map((e) => `<tr class="link" data-go="#/journal/${e.no}"><td class="code">JE-${e.no}</td><td>${esc(e.desc)}</td><td class="num">${n(total(e))}</td></tr>`).join('');
+  return frame('dashboard', 'Overview', `Position as of ${longDate(iso(0))}. Amounts in PHP.`, canPost() ? '<a class="btn primary" href="#/journal/new">New entry</a>' : '',
+   `<div class="cols"><div class="statement"><h2>Assets</h2>${ln('Cash and bank', A('1000') + A('1010'))}${ln('Receivables', A('1100'))}${ln('Inventory', A('1200'))}${ln('Equipment', A('1500'))}${ln('Total assets', assets, 'sum')}
+     <h2>Liabilities</h2>${ln('Payables', -A('2000'))}${ln('VAT payable', -A('2100'))}${ln('Total liabilities', liab, 'sum')}
+     <h2>Equity</h2>${ln("Owner's capital", -A('3000'))}${ln('Earnings to date', earn)}${ln('Total equity', eq, 'sum')}
+     <div class="asof">${assets === liab + eq ? 'Assets equal liabilities plus equity.' : '<span class="red">Does not balance.</span>'}</div></div>
+    <div>${assetBlock(b)}<div class="toolbar"><h2 class="grow">Latest entries</h2><a href="#/journal">All entries</a></div><div class="tbl-wrap"><table><tbody>${recent}</tbody></table></div></div></div>`);
+ },
+ accounts() {
+  let rows = '';
+  for (const [t, label] of Object.entries(TYPES)) { const list = accounts.filter((a) => a.type === t); if (!list.length) continue; rows += `<tr class="group"><td colspan="3">${label}</td></tr>` + list.map((a) => `<tr class="${a.active ? '' : 'off'}"><td class="code">${esc(a.code)}</td><td class="name">${esc(a.name)}</td><td class="num">${canPost() ? `<button class="linkbtn" data-toggle="${a.code}">${a.active ? 'Deactivate' : 'Reactivate'}</button>` : (a.active ? '' : 'Inactive')}</td></tr>`).join(''); }
+  return frame('accounts', 'Chart of accounts', 'An account that has postings cannot be deleted, only deactivated.', canPost() ? '<button class="btn primary" id="add-acct">Add account</button>' : '',
+   `<div class="toolbar"><label class="sr-only" for="q">Filter</label><input id="q" placeholder="Filter by code or name" style="max-width:280px"></div><div class="tbl-wrap"><table id="at"><thead><tr><th class="code">Code</th><th>Name</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`);
+ },
+ journal() {
+  const rows = [...entries].reverse().map((e) => `<tr class="link" data-go="#/journal/${e.no}"><td class="code">JE-${e.no}</td><td>${longDate(e.date)}</td><td>${esc(e.desc)}${e.reverses ? ` <span class="muted">· reverses JE-${e.reverses}</span>` : ''}${e.reversedBy ? ` <span class="muted">· reversed</span>` : ''}</td><td class="ref hide-sm">${esc(e.ref || '')}</td><td class="num">${n(total(e))}</td></tr>`).join('');
+  return frame('journal', 'Journal', 'Posted entries are locked. To correct one, reverse it and post a new entry.', canPost() ? '<a class="btn primary" href="#/journal/new">New entry</a>' : '',
+   `<div class="tbl-wrap"><table><thead><tr><th class="code">No.</th><th>Date</th><th>Description</th><th class="hide-sm">Reference</th><th class="num">Amount (PHP)</th></tr></thead><tbody>${rows}</tbody></table><div class="pager"><span>${entries.length} entries</span><span></span></div></div>`);
+ },
+ entry(no) {
+  const e = entries.find((x) => x.no === +no); if (!e) return frame('journal', 'Entry not found', '', '', '<p class="muted">There is no such entry in this workspace.</p>');
+  const ls = e.lines.map((l, i) => `<tr><td class="code">${acct(l.a).code}</td><td>${esc(acct(l.a).name)}</td><td class="num">${l.dr ? n(l.dr) : ''}</td><td class="num">${l.cr ? n(l.cr) : ''}</td></tr>`).join('');
+  const t = total(e);
+  return frame('journal', `JE-${e.no}`, '', `<span class="stamp${fresh ? ' thunk' : ''}">Posted ${longDate(e.date)}</span>${e.reversedBy ? '<span class="stamp reversed">Reversed</span>' : ''}` + (canPost() && !e.reverses && !e.reversedBy ? '<button class="btn danger" id="reverse">Reverse entry…</button>' : ''),
+   `<dl class="kv"><dt>Date</dt><dd>${longDate(e.date)}</dd><dt>Description</dt><dd>${esc(e.desc)}</dd><dt>Reference</dt><dd class="mono">${esc(e.ref || 'none')}</dd><dt>Status</dt><dd>Locked. Corrections are made by reversal.${e.reverses ? ` Reverses <a href="#/journal/${e.reverses}">JE-${e.reverses}</a>` : ''}${e.reversedBy ? ` Reversed by <a href="#/journal/${e.reversedBy}">JE-${e.reversedBy}</a>` : ''}</dd></dl>
+    <div class="tbl-wrap"><table><thead><tr><th class="code">Account</th><th>Name</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${ls}</tbody><tfoot><tr><td></td><td>Total (PHP)</td><td class="num">${n(t)}</td><td class="num">${n(t)}</td></tr></tfoot></table></div>`,
+   '<a href="#/journal">Journal</a> /');
+ },
+ 'new'() {
+  if (!canPost()) return frame('journal', 'New entry', '', '', '<div class="notice error" role="alert">Your role can read the journal but not post to it.</div>');
+  return frame('journal', 'New entry', 'Debits and credits must match before you can post.', '',
+   `<form class="voucher" id="je" novalidate><div class="top"><div class="formrow"><div><label for="d">Date</label><input id="d" type="date" value="${iso(0)}"></div><div><label for="ds">Description</label><input id="ds" maxlength="500" autocomplete="off"></div><div><label for="rf">Reference</label><input id="rf" maxlength="100" autocomplete="off"></div></div></div>
+    <div class="tbl-wrap" style="border:0;border-radius:0"><table><thead><tr><th>Account</th><th class="num" style="width:150px">Debit</th><th class="num" style="width:150px">Credit</th><th></th></tr></thead><tbody id="lines"></tbody></table></div>
+    <div class="below"><button class="linkbtn" type="button" id="addline">Add line</button><span class="muted">Enter an amount in either column. Tab moves across.</span></div>
+    <div class="foot"><div class="sums"><div><span>Debits</span><strong id="sd">0.00</strong></div><div><span>Credits</span><strong id="sc">0.00</strong></div><div><span>Difference</span><strong id="sx">0.00</strong></div></div>
+     <div class="actions-row"><span id="state" class="muted" role="status"></span><a class="btn" href="#/journal">Cancel</a><button class="btn primary" id="post" disabled>Post <kbd style="color:inherit;border-color:currentColor;opacity:.7">Ctrl+↵</kbd></button></div></div></form>`, '<a href="#/journal">Journal</a> /');
+ },
+ 'trial-balance'() {
+  const b = bal(tbDate); let td = 0n, tc = 0n;
+  const rows = accounts.filter((a) => b[a.code]).map((a) => { const v = b[a.code], d = v > 0n ? v : 0n, c = v < 0n ? -v : 0n; td += d; tc += c; return `<tr><td class="code">${a.code}</td><td>${esc(a.name)}</td><td class="num">${d ? n(d) : ''}</td><td class="num">${c ? n(c) : ''}</td></tr>`; }).join('');
+  return frame('trial-balance', 'Trial balance', 'Net balance of every account with activity.', `<div><label for="asof">As of</label><input id="asof" type="date" value="${tbDate}" style="width:auto"></div>`,
+   `<div class="tbl-wrap"><table><thead><tr><th class="code">Code</th><th>Account</th><th class="num">Debit (PHP)</th><th class="num">Credit (PHP)</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td></td><td>Totals</td><td class="num">${n(td)}</td><td class="num">${n(tc)}</td></tr></tfoot></table></div>
+    <p class="check ${td === tc ? '' : 'bad'}">${td === tc ? 'Debits and credits agree.' : 'Out of balance by ' + n(td > tc ? td - tc : tc - td) + '. Contact support.'}</p>`);
+ },
+ audit() {
+  if (!canAudit()) return frame('journal', 'Audit log', '', '', '<div class="notice error" role="alert">Your role cannot open the audit log.</div>');
+  return frame('audit', 'Audit log', 'Written by the system on every change. Rows cannot be edited or deleted.', '',
+   `<div class="tbl-wrap"><table><thead><tr><th>When</th><th>Event</th><th>Detail</th></tr></thead><tbody>${audit.map((a) => `<tr><td class="ref">${esc(a.t)}</td><td class="mono">${esc(a.a)}</td><td>${esc(a.d)}</td></tr>`).join('')}</tbody></table></div>`);
+ },
+};
+
+const app = $('#app');
+const toast = (m) => { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => (t.hidden = true), 2400); };
+function render() {
+  const h = location.hash.replace(/^#\/?/, '') || 'login'; const [p, arg] = h.split('/');
+  if (p !== 'login' && !session) { location.hash = '#/login'; return; }
+  const fn = p === 'journal' ? (arg === 'new' ? S.new : arg ? () => S.entry(arg) : S.journal) : (Object.hasOwn(S, p) ? S[p] : S.dashboard);
+  app.innerHTML = fn(); fresh = false; wire(p, arg); document.title = 'ERPatio · ' + (p === 'login' ? 'sign in' : p.replace('-', ' ')); scrollTo(0, 0);
+}
+function wire(p, arg) {
+  $('#menu')?.addEventListener('click', () => $('#rail').classList.toggle('open'));
+  $('#role')?.addEventListener('change', (e) => { role = e.target.value; render(); });
+  document.querySelectorAll('[data-go]').forEach((r) => r.addEventListener('click', () => (location.hash = r.dataset.go)));
+  if (p === 'login') {
+    $('#fill').onclick = () => { $('#ws').value = 'casa-verde-demo'; $('#em').value = 'demo@erpatio.app'; $('#pw').value = 'ERPatio-Demo-2026'; $('#pw').focus(); };
+    $('#ws').focus();
+    $('#login').onsubmit = (e) => { e.preventDefault();
+      const v = { ws: $('#ws').value.trim(), em: $('#em').value.trim(), pw: $('#pw').value }, msg = { ws: 'Enter your workspace code.', em: 'Enter your email.', pw: 'Enter your password.' };
+      let bad = false; for (const k of ['ws', 'em', 'pw']) { $('#e-' + k).textContent = v[k] ? '' : msg[k]; if (!v[k]) bad = true; }
+      $('#wsf').classList.toggle('bad', !v.ws); if (bad) return;
+      if (v.ws === 'casa-verde-demo' && v.em === 'demo@erpatio.app' && v.pw === 'ERPatio-Demo-2026') { session = true; location.hash = '#/dashboard'; } else $('#lerr').hidden = false; };
+  }
+  if (p === 'accounts') {
+    $('#q').oninput = (e) => { const v = e.target.value.toLowerCase(); document.querySelectorAll('#at tbody tr:not(.group)').forEach((tr) => (tr.hidden = !tr.textContent.toLowerCase().includes(v))); };
+    document.querySelectorAll('[data-toggle]').forEach((b) => (b.onclick = () => { const a = acct(b.dataset.toggle); a.active = !a.active; audit.unshift({ t: 'Today', a: 'account.updated', d: `${a.code} ${a.active ? 'reactivated' : 'deactivated'}` }); render(); }));
+    $('#add-acct')?.addEventListener('click', addAccount);
+  }
+  if (p === 'trial-balance') $('#asof').onchange = (e) => { tbDate = e.target.value || tbDate; render(); };
+  if (p === 'journal' && arg === 'new') editor();
+  if (p === 'journal' && arg && arg !== 'new') $('#reverse')?.addEventListener('click', () => confirmReverse(+arg));
+}
+function addAccount() {
+  const d = $('#dlg'); d.innerHTML = `<form method="dialog"><h3>Add account</h3><div class="stack"><div><label for="ac">Code</label><input id="ac" maxlength="20" autocomplete="off"><div class="hint">Letters, digits, dot or dash. Up to 20.</div></div><div><label for="an">Name</label><input id="an" maxlength="200" autocomplete="off"></div><div><label for="at2">Type</label><select id="at2">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.replace(/s$/, '')}</option>`).join('')}</select></div><div id="ae" class="field-error" role="alert"></div></div><div class="row"><button class="btn" value="cancel">Cancel</button><button class="btn primary" id="as">Save</button></div></form>`;
+  d.showModal(); $('#ac').focus();
+  $('#as').onclick = (e) => { e.preventDefault(); const c = $('#ac').value.trim().toUpperCase(), nm = $('#an').value.trim(), er = $('#ae');
+    if (!/^[A-Z0-9.-]{1,20}$/.test(c) || !nm) return (er.textContent = 'Enter a code and a name.');
+    if (acct(c)) return (er.textContent = `Code ${c} is already used.`);
+    accounts.push({ code: c, name: nm, type: $('#at2').value, active: true }); accounts.sort((a, b) => a.code.localeCompare(b.code)); audit.unshift({ t: 'Today', a: 'account.created', d: c }); d.close(); toast('Account added'); render(); };
+}
+function confirmReverse(no) {
+  const d = $('#dlg'); d.innerHTML = `<form method="dialog"><h3>Reverse JE-${no}?</h3><p>This posts a new entry that swaps every debit and credit. The original stays on the books and is marked reversed. It cannot be undone.</p><div class="row"><button class="btn" value="cancel">Keep entry</button><button class="btn danger" id="go">Reverse entry</button></div></form>`;
+  d.showModal(); $('#go').onclick = (e) => { e.preventDefault(); const o = entries.find((x) => x.no === no), k = entries.length + 1;
+    entries.push({ no: k, date: iso(0), desc: `Reversal of JE-${no}: ${o.desc}`, ref: `REV-${no}`, lines: o.lines.map((l) => ({ a: l.a, dr: l.cr, cr: l.dr })), reverses: no, reversedBy: null }); o.reversedBy = k;
+    audit.unshift({ t: 'Today', a: 'journal.reversed', d: `JE-${no} by JE-${k}` }); d.close(); toast(`Posted JE-${k}`); fresh = true; location.hash = '#/journal/' + k; };
+}
+function editor() {
+  const tb = $('#lines'), opts = accounts.filter((a) => a.active).map((a) => `<option value="${a.code}">${a.code}  ${esc(a.name)}</option>`).join('');
+  const add = () => { const tr = document.createElement('tr'); tr.innerHTML = `<td><select aria-label="Account"><option value=""></option>${opts}</select></td><td class="amt"><input inputmode="decimal" aria-label="Debit" autocomplete="off"></td><td class="amt"><input inputmode="decimal" aria-label="Credit" autocomplete="off"></td><td class="rm"><button type="button" class="linkbtn" aria-label="Remove line" title="Remove line">×</button></td>`; tb.append(tr);
+    tr.querySelector('button').onclick = () => { if (tb.rows.length > 2) { tr.remove(); calc(); } };
+    const [dr, cr] = tr.querySelectorAll('input'); dr.oninput = () => { if (dr.value) cr.value = ''; calc(); }; cr.oninput = () => { if (cr.value) dr.value = ''; calc(); }; tr.querySelector('select').onchange = calc; };
+  function calc() { let d = 0n, c = 0n, bad = false, miss = false;
+    for (const tr of tb.rows) { const [dr, cr] = tr.querySelectorAll('input'), sel = tr.querySelector('select').value;
+      for (const [inp, s] of [[dr, 'd'], [cr, 'c']]) { inp.removeAttribute('aria-invalid'); if (inp.value) { const v = toCents(inp.value); if (v === null || v === 0n) { inp.setAttribute('aria-invalid', 'true'); bad = true; } else { s === 'd' ? (d += v) : (c += v); if (!sel) miss = true; } } } }
+    const diff = d > c ? d - c : c - d, ok = !bad && !miss && d > 0n && d === c && $('#ds').value.trim();
+    $('#sd').textContent = n(d); $('#sc').textContent = n(c); $('#sx').textContent = n(diff); $('#sx').className = diff ? 'red' : '';
+    $('#state').className = ok ? 'balanced-note' : 'muted'; $('#state').textContent = ok ? 'In balance. Ready to post.' : bad ? 'An amount is not valid.' : miss ? 'Choose an account for each amount.' : d === 0n && c === 0n ? '' : diff ? 'Out of balance.' : !$('#ds').value.trim() ? 'Add a description.' : '';
+    $('#post').disabled = !ok; }
+  add(); add(); $('#addline').onclick = () => { add(); tb.lastElementChild.querySelector('select').focus(); }; $('#ds').oninput = calc; $('#ds').focus();
+  const submit = (e) => { e?.preventDefault(); if ($('#post').disabled) return;
+    const ls = [...tb.rows].map((tr) => { const [dr, cr] = tr.querySelectorAll('input'); return { a: tr.querySelector('select').value, dr: dr.value ? toCents(dr.value) : 0n, cr: cr.value ? toCents(cr.value) : 0n }; }).filter((l) => l.dr || l.cr);
+    const no = entries.length + 1; entries.push({ no, date: $('#d').value, desc: $('#ds').value.trim(), ref: $('#rf').value.trim(), lines: ls, reversedBy: null, reverses: null });
+    audit.unshift({ t: 'Today', a: 'journal.posted', d: `JE-${no}, ${n(ls.reduce((s, l) => s + l.dr, 0n))}` }); toast(`Posted JE-${no}`); fresh = true; location.hash = '#/journal/' + no; };
+  $('#je').onsubmit = submit; $('#je').onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(e); };
+}
+addEventListener('hashchange', render); render();
+</script>
+</body>
+</html>

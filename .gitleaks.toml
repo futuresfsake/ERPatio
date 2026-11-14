@@ -1,0 +1,9 @@
+# Secret-scanner configuration. Keep exceptions as narrow as possible and explain each one.
+title = "ERPatio"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The public demo workspace password is published on purpose (docs/03-architecture/adr/ADR-008-public-demo-workspace.md). It protects synthetic data only."
+regexes = ['''ERPatio-Demo-2026''']
