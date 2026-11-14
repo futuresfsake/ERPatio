@@ -167,6 +167,19 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-07 People and payroll (M5, migration 012)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-080 | Employees; pay, identifiers, bank account, birth date encrypted | PASS | ciphertext in the table, never in lists; reveal is a separate audited call (`payroll.test.ts`) |
+| US-081 | Shifts and attendance with hours worked out from the shift | PASS | break taken off, excess is overtime; employment dates enforced; a day in a locked run cannot change |
+| US-082 | Statutory rules and withholding brackets as data | PASS | edit changes the next computation; brackets must be contiguous from zero and open-ended |
+| US-083 | Payroll computation (SSS, PhilHealth, Pag-IBIG, withholding tax, overtime, proration, absences) | PASS | exact figures checked by hand for a monthly and a daily employee; semi-monthly halves pay and shares monthly statutory amounts |
+| US-084 | Adjustments (extra pay, deductions) | PASS | deductions beyond take-home pay are capped with a warning; contributions limited to pay earned |
+| US-085 | Approve, post and lock | PASS | preparer cannot approve (service and database check); one balanced entry; frozen by trigger (update, delete, adjustments, recompute, attendance) |
+| US-086 | Pay the net | PASS | once only; asset account required; liabilities in payslips equal the ledger |
+| US-087 | Erase a former employee | PASS | only after termination; pseudonymised on payslips; money never changes; export decrypts and is audited |
+| US-088 | Module and role separation | PASS | hcm module gate; HRManager cannot approve; PayrollApprover cannot add people |
+
 ### EPIC-06 Production (M4, migration 011)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -362,6 +375,10 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-50 | No return of unused materials from a work order to stock; over-issue is recoverable only by closing the order and writing off | Medium | Add material return at issue cost |
 | F-51 | Single-level costing: a component that is itself manufactured needs its own work order first; no routing, work centres, scrap or by-products; labor and overhead are entered by hand per output | Medium | Add routings and rates after pilot feedback |
 | F-52 | Work order output is not tied to a sales demand (no MRP or planning) | Low | Planning is out of scope until M6 |
+| F-53 | Statutory rates and withholding brackets are starting values from general knowledge, not verified against current SSS, PhilHealth, Pag-IBIG and BIR tables | High | An accountant must confirm and set them before any real payroll; legal review (G-21) |
+| F-54 | Not built: 13th-month pay, leave credits and balances, holiday and night-differential premiums, loans with schedules, year-end tax annualisation, payslip printing, bank file export, BIR and SSS reports | High | Each is needed before real use; plan as the next HR slice |
+| F-55 | Payroll amounts are classified sensitive and protected by RLS and permissions, but stored in clear (needed for totals); only the pay rate and identifiers are encrypted | Low | Accepted; revisit with column-level encryption if a customer requires it |
+| F-56 | Contributions for semi-monthly runs are the monthly amount on a projected basis divided by two, an approximation | Medium | Replace with month-to-date accumulation |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

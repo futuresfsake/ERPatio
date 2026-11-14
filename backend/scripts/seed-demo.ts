@@ -10,12 +10,14 @@
 import 'dotenv/config';
 import { getEnv } from '../src/config/env.js';
 import { closePool, createPool, withTenant } from '../src/db/pool.js';
-import { DEMO_ROLE } from '../src/lib/permissions.js';
+import { DEMO_ROLE, SYSTEM_ROLES } from '../src/lib/permissions.js';
 import { createUser, provisionTenant } from '../src/modules/tenants/provision.js';
 import { postEntry } from '../src/modules/ledger/service.js';
 import * as sub from '../src/modules/subledger/service.js';
 import * as stk from '../src/modules/stock/service.js';
 import * as prd from '../src/modules/production/service.js';
+import * as hcm from '../src/modules/hcm/service.js';
+import { randomBytes } from 'node:crypto';
 import type { Principal } from '../src/lib/security.js';
 
 export const DEMO_SLUG = 'casa-verde-demo';
@@ -50,6 +52,7 @@ export async function seedDemo(reset: boolean): Promise<string> {
   const c = await owner.connect();
   let tenantId: string;
   let userId: string;
+  let approverId: string;
   try {
     await c.query('BEGIN');
     const existing = (await c.query<{ id: string; is_demo: boolean }>('SELECT id, is_demo FROM tenants WHERE slug = $1', [DEMO_SLUG])).rows[0];
@@ -62,15 +65,17 @@ export async function seedDemo(reset: boolean): Promise<string> {
       await c.query("SELECT set_config('app.tenant_id', $1, true)", [existing.id]);
       // Append-only triggers are lifted for this one maintenance transaction, demo tenant only.
       const guarded = ['audit_log', 'journal_lines', 'journal_entries'];
-      const subledger = ['work_order_components', 'work_orders', 'bom_lines', 'boms', 'bank_matches', 'bank_statement_lines', 'credit_applications', 'sales_order_lines', 'sales_orders', 'purchase_order_lines', 'purchase_orders', 'stock_movements', 'item_stock', 'items', 'payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines', 'bom_lines']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      const subledger = ['payroll_adjustments', 'payslips', 'payroll_runs', 'attendance', 'shifts', 'employees', 'statutory_rules', 'tax_brackets', 'work_order_components', 'work_orders', 'bom_lines', 'boms', 'bank_matches', 'bank_statement_lines', 'credit_applications', 'sales_order_lines', 'sales_orders', 'purchase_order_lines', 'purchase_orders', 'stock_movements', 'item_stock', 'items', 'payment_voids', 'payment_allocations', 'payments', 'document_lines', 'documents', 'parties', 'tax_codes', 'doc_counters'];
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines', 'bom_lines', 'payslips', 'payroll_adjustments', 'payroll_runs']) await c.query(`ALTER TABLE ${t} DISABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       for (const t of [...subledger, ...guarded, 'journal_draft_lines', 'journal_drafts', 'refresh_tokens', 'email_tokens', 'consents', 'user_roles', 'role_permissions', 'roles', 'fiscal_periods', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'users', 'accounts', 'tenant_counters'])
         await c.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [existing.id]); // eslint-disable-line no-restricted-syntax
-      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines', 'bom_lines']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
+      for (const t of [...guarded, 'payments', 'payment_allocations', 'payment_voids', 'stock_movements', 'credit_applications', 'bank_statement_lines', 'bom_lines', 'payslips', 'payroll_adjustments', 'payroll_runs']) await c.query(`ALTER TABLE ${t} ENABLE TRIGGER USER`); // eslint-disable-line no-restricted-syntax
       await c.query('DELETE FROM tenants WHERE id = $1 AND is_demo', [existing.id]);
     }
-    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain', 'production'] });
+    tenantId = await provisionTenant(c, { slug: DEMO_SLUG, name: DEMO_NAME, isDemo: true, modules: ['finance', 'supply_chain', 'production', 'hcm'] });
     userId = await createUser(c, { tenantId, email: DEMO_EMAIL, fullName: 'Demo Accountant', password: DEMO_PASSWORD, roles: [DEMO_ROLE[0]] });
+    // A second person who can approve payroll, so the sample run was approved by someone other than its preparer. Nobody can sign in as them.
+    approverId = await createUser(c, { tenantId, email: 'payroll-approver@erpatio.app', fullName: 'Payroll Approver', password: randomBytes(24).toString('hex'), roles: ['PayrollApprover'] });
     await c.query('COMMIT');
   } catch (e) {
     await c.query('ROLLBACK').catch(() => undefined);
@@ -127,7 +132,29 @@ export async function seedDemo(reset: boolean): Promise<string> {
   await prd.issueMaterials(principal, w1.id, { date: isoDaysAgo(5) }, 'seed');
   await prd.completeWorkOrder(principal, w1.id, { date: isoDaysAgo(4), quantity: '500', conversion_cost: '3200.00' }, 'seed');
   await prd.releaseWorkOrder(principal, (await prd.createWorkOrder(principal, { item_id: loaf, quantity: '300', planned_date: isoDaysAgo(0) }, 'seed')).id, 'seed');
-  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries, 4 invoices, bills and receipts, sample stock and production; sign in as ${DEMO_EMAIL}`;
+  // People and payroll for last month: three employees, a month of attendance, a run prepared by the demo user, approved and paid by the approver.
+  const approver: Principal = { userId: approverId, tenantId, roles: ['PayrollApprover'], permissions: SYSTEM_ROLES.PayrollApprover! };
+  const now = new Date();
+  const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const hire = ymd(new Date(Date.UTC(first.getUTCFullYear() - 1, 0, 6)));
+  const emp = async (full_name: string, pay_type: 'monthly' | 'daily' | 'hourly', rate: string, department: string) =>
+    (await hcm.createEmployee(principal, { full_name, hire_date: hire, pay_type, rate, department, position: department }, 'seed')).id as string;
+  const [ana, ben, cora] = [await emp('Ana Reyes', 'monthly', '28000', 'Office'), await emp('Ben Cruz', 'daily', '800', 'Bakery'), await emp('Cora Diaz', 'hourly', '150', 'Delivery')];
+  const shift = (await hcm.createShift(principal, { code: 'DAY', name: 'Day shift', start_time: '08:00', end_time: '17:00', break_minutes: 60 }, 'seed')).id as string;
+  for (let d = new Date(first); d <= last; d = new Date(d.getTime() + 86_400_000)) {
+    if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
+    const day = ymd(d);
+    const late = d.getUTCDate() % 9 === 0;
+    for (const e of [ana, ben, cora]) {
+      await hcm.recordAttendance(principal, { employee_id: e, work_date: day, status: 'present', shift_id: shift, time_in: '08:00', time_out: late && e !== ana ? '19:00' : '17:00' }, 'seed');
+    }
+  }
+  const pr = await hcm.createRun(principal, { period_start: ymd(first), period_end: ymd(last), pay_date: ymd(last), frequency: 'monthly' }, 'seed');
+  await hcm.lockRun(approver, pr.id, 'seed');
+  await hcm.payRun(approver, pr.id, codes.get('1010')!, ymd(last), 'seed');
+  return `demo tenant '${DEMO_SLUG}' ready with ${ENTRIES.length} journal entries, 4 invoices, bills and receipts, sample stock, production and one paid payroll; sign in as ${DEMO_EMAIL}`;
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` || process.argv[1]?.endsWith('seed-demo.ts')) {

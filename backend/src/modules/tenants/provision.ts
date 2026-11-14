@@ -8,6 +8,7 @@ import type { PoolClient } from 'pg';
 import { ALL_PERMISSIONS, DEMO_ROLE, MODULES, SYSTEM_ROLES } from '../../lib/permissions.js';
 import { defaultFiscalYears, monthRanges } from '../../lib/fiscal.js';
 import { hashPassword } from '../../lib/security.js';
+import { STATUTORY_DEFAULTS, TAX_DEFAULTS } from '../hcm/defaults.js';
 
 /** Simplified chart of accounts for a small trading company (Gap G-17: simplified template). */
 export const DEFAULT_COA: [code: string, name: string, type: string][] = [
@@ -21,6 +22,9 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['2000', 'Accounts Payable', 'liability'],
   ['2050', 'Goods Received Not Invoiced', 'liability'],
   ['2100', 'VAT Payable', 'liability'],
+  ['2200', 'Withholding Tax Payable', 'liability'],
+  ['2210', 'Contributions and Deductions Payable', 'liability'],
+  ['2220', 'Salaries Payable', 'liability'],
   ['3000', "Owner's Capital", 'equity'],
   ['3100', 'Retained Earnings', 'equity'],
   ['4000', 'Sales Revenue', 'revenue'],
@@ -31,6 +35,7 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['5300', 'Production Variance', 'expense'],
   ['6000', 'Rent Expense', 'expense'],
   ['6100', 'Salaries Expense', 'expense'],
+  ['6110', 'Employer Contributions Expense', 'expense'],
   ['6200', 'Utilities Expense', 'expense'],
   ['6300', 'Office Supplies Expense', 'expense'],
 ];
@@ -78,16 +83,25 @@ export async function provisionTenant(
        sales_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '4000'),
        wip_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1210'),
        conversion_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5200'),
-       variance_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5300') WHERE tenant_id = $1`,
+       variance_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5300'),
+       salaries_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '6100'),
+       employer_contrib_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '6110'),
+       wht_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2200'),
+       contrib_payable_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2210'),
+       salaries_payable_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2220') WHERE tenant_id = $1`,
     [tid],
   );
-  for (const kind of ['invoice', 'bill', 'po', 'so', 'credit_note', 'debit_note', 'wo']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
+  for (const kind of ['invoice', 'bill', 'po', 'so', 'credit_note', 'debit_note', 'wo', 'emp', 'pr']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
   await c.query(
     `INSERT INTO tax_codes (tenant_id, code, name, rate, kind, account_id)
      SELECT $1, v.code, v.name, 12, v.kind, a.id FROM (VALUES ('OUT12', 'Output VAT 12%', 'output', '2100'), ('IN12', 'Input VAT 12%', 'input', '1300')) v(code, name, kind, acct)
        JOIN accounts a ON a.tenant_id = $1 AND a.code = v.acct`,
     [tid],
   );
+  for (const r of STATUTORY_DEFAULTS)
+    await c.query('INSERT INTO statutory_rules (tenant_id, code, ee_rate, er_rate, base_min, base_max) VALUES ($1, $2, $3, $4, $5, $6)', [tid, r.code, r.ee, r.er, r.min, r.max]);
+  for (const b of TAX_DEFAULTS)
+    await c.query('INSERT INTO tax_brackets (tenant_id, lower, upper, base_tax, rate) VALUES ($1, $2, $3, $4, $5)', [tid, b.lower, b.upper, b.base, b.rate]);
   return tid;
 }
 

@@ -55,7 +55,7 @@ describe('cross-tenant leak tests (R-02, T-06): tenant A asking for tenant B ids
 describe('row-level security enforced by the database itself', () => {
   it('a tenant session sees only its own rows', async () => {
     const n = await withTenant(b.tenantId, async (c) => (await c.query('SELECT count(*)::int AS n, count(DISTINCT tenant_id)::int AS t FROM accounts')).rows[0]);
-    expect(n).toEqual({ n: 22, t: 1 });
+    expect(n).toEqual({ n: 26, t: 1 });
   });
 
   it('a session with no tenant context sees nothing (fail closed)', async () => {
@@ -100,7 +100,7 @@ describe('row-level security enforced by the database itself', () => {
     expect(r.rows[0]).toEqual({ rolbypassrls: false, rolsuper: false, rolcanlogin: false });
     const forced = await owner.query("SELECT relname FROM pg_class WHERE relforcerowsecurity AND relnamespace = 'public'::regnamespace");
     expect(forced.rows.map((x) => x.relname).sort()).toEqual(
-      ['accounts', 'audit_log', 'bom_lines', 'boms', 'bank_matches', 'bank_statement_lines', 'credit_applications', 'consents', 'doc_counters', 'item_stock', 'items', 'document_lines', 'documents', 'email_tokens', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'parties', 'purchase_order_lines', 'purchase_orders', 'sales_order_lines', 'sales_orders', 'stock_movements', 'payment_allocations', 'payment_voids', 'payments', 'refresh_tokens', 'role_permissions', 'roles', 'tax_codes', 'tenant_counters', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'user_roles', 'users', 'work_order_components', 'work_orders'].sort(),
+      ['accounts', 'attendance', 'audit_log', 'bom_lines', 'boms', 'bank_matches', 'bank_statement_lines', 'credit_applications', 'consents', 'doc_counters', 'employees', 'item_stock', 'items', 'document_lines', 'documents', 'email_tokens', 'fiscal_periods', 'journal_draft_lines', 'journal_drafts', 'journal_entries', 'journal_lines', 'parties', 'payroll_adjustments', 'payroll_runs', 'payslips', 'purchase_order_lines', 'purchase_orders', 'sales_order_lines', 'sales_orders', 'shifts', 'statutory_rules', 'stock_movements', 'payment_allocations', 'payment_voids', 'payments', 'refresh_tokens', 'role_permissions', 'roles', 'tax_brackets', 'tax_codes', 'tenant_counters', 'tenant_keys', 'tenant_modules', 'tenant_settings', 'user_roles', 'users', 'work_order_components', 'work_orders'].sort(),
     );
   });
 });

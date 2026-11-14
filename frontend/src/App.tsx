@@ -24,6 +24,7 @@ import { TrialBalancePage } from './pages/TrialBalance';
 import { AgingPage, VatPage } from './pages/AgingVat';
 import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
 import { Parties } from './pages/Parties';
+import { AttendancePage, EmployeesPage, PayrollPage, PayrollRunPage, RulesPage } from './pages/Hr';
 import { BomPage, WipPage, WorkOrderDetail, WorkOrderList } from './pages/Production';
 import { BankPage } from './pages/Bank';
 import { Items, StockCard, ValuationPage } from './pages/Items';
@@ -82,6 +83,10 @@ function Frame() {
               {can('production:read') && link('/boms', 'Bills of materials')}
               {can('production:read') && link('/work-orders', 'Work orders')}
               {can('production:read') && link('/reports/wip', 'Work in progress')}
+              {can('employees:read') && <div className="label">People</div>}
+              {can('employees:read') && link('/employees', 'Employees')}
+              {can('employees:read') && link('/attendance', 'Attendance')}
+              {can('payroll:read') && link('/payroll', 'Payroll')}
               <div className="label">Reports</div>
               {link('/trial-balance', 'Trial balance')}
               {link('/reports/income-statement', 'Income statement')}
@@ -92,8 +97,6 @@ function Frame() {
               {people && link('/roles', 'Roles')}
               {can('audit:read') && link('/audit', 'Audit log')}
               {can('settings:manage') && link('/settings', 'Settings')}
-              <div className="label">Later</div>
-              <a className="later" aria-disabled="true">Payroll</a>
             </>
           )}
         </nav>
@@ -165,6 +168,11 @@ export function App() {
         <Route path="reports/income-statement" element={<IncomeStatementPage />} />
         <Route path="reports/balance-sheet" element={<BalanceSheetPage />} />
         <Route path="bank" element={<BankPage />} />
+        <Route path="employees" element={<EmployeesPage />} />
+        <Route path="attendance" element={<AttendancePage />} />
+        <Route path="payroll" element={<PayrollPage />} />
+        <Route path="payroll/rules" element={<RulesPage />} />
+        <Route path="payroll/:id" element={<PayrollRunPage />} />
         <Route path="boms" element={<BomPage />} />
         <Route path="work-orders" element={<WorkOrderList />} />
         <Route path="work-orders/:id" element={<WorkOrderDetail />} />

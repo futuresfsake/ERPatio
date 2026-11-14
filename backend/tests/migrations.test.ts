@@ -14,7 +14,7 @@ describe('migrations (DoD: Alembic-style reversible migration)', () => {
   it('roll back completely and re-apply', async () => {
     const before = (await tables()).sort();
     expect(before).toContain('journal_entries');
-    run('migrate:down -- 11');
+    run('migrate:down -- 12');
     expect(await tables()).toEqual([]);
     run('migrate');
     expect((await tables()).sort()).toEqual(before);
