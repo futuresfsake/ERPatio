@@ -167,6 +167,17 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-06 Production (M4, migration 011)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-071 | Bills of materials with versions | PASS | new save becomes the active version; lines cannot be changed; cost estimate at current average cost (`production.test.ts`) |
+| US-072 | No loops in a bill | PASS | self-reference and multi-level loops refused by a recursive check |
+| US-073 | Work orders: draft, release (number, frozen components), cancel | PASS | snapshot survives a later bill change; started orders cannot be cancelled |
+| US-074 | Issue materials to work in progress | PASS | Dr WIP Cr Inventory at moving average; all or nothing; over-issue shows as a usage variance |
+| US-075 | Report output | PASS | finished goods at the share of WIP plus conversion cost; partial and final batches; no residue from uneven divisions |
+| US-076 | Close short | PASS | leftover WIP written off to Production Variance; entry cannot be reversed by hand |
+| US-077 | WIP equals the ledger (gate: variance 0) | PASS | report by order against account 1210; a manual entry shows as a difference; stock still equals the ledger after production |
+
 ### EPIC-04b Credit notes and bank (M2, migration 010)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -348,6 +359,9 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-47 | Bank reconciliation assumes the imported statement starts where the books do; no statement closing balance or opening balance is entered | Low | Add opening balance and statement closing balance if a customer needs a signed-off reconciliation |
 | F-48 | A credit or debit note application cannot be undone | Low | Add an un-apply that reverses the totals |
 | F-49 | Multi-currency is not built (ADR-011) | Medium | Build when a pilot customer needs it |
+| F-50 | No return of unused materials from a work order to stock; over-issue is recoverable only by closing the order and writing off | Medium | Add material return at issue cost |
+| F-51 | Single-level costing: a component that is itself manufactured needs its own work order first; no routing, work centres, scrap or by-products; labor and overhead are entered by hand per output | Medium | Add routings and rates after pilot feedback |
+| F-52 | Work order output is not tied to a sales demand (no MRP or planning) | Low | Planning is out of scope until M6 |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

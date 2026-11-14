@@ -161,6 +161,7 @@ export const reverseEntry = (p: Principal, id: string, on: string | undefined, i
        UNION ALL SELECT 1 FROM payments WHERE journal_entry_id = $1
        UNION ALL SELECT 1 FROM payment_voids WHERE journal_entry_id = $1
        UNION ALL SELECT 1 FROM stock_movements WHERE journal_entry_id = $1
+       UNION ALL SELECT 1 FROM work_orders WHERE close_entry_id = $1
        UNION ALL SELECT 1 FROM journal_entries WHERE id = $1 AND closing_year IS NOT NULL`,
       [id],
     );
