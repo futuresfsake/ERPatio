@@ -9,7 +9,7 @@ import { ApiError } from './errors.js';
 import { GUARD, type GuardInfo } from './permissions.js';
 import type { Principal } from './security.js';
 
-type Method = 'get' | 'post' | 'patch' | 'delete';
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
 type GuardHandler = RequestHandler & { [GUARD]: GuardInfo };
 
 export interface Ctx<B, Q, P> {

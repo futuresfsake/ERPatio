@@ -153,6 +153,14 @@ export const reverseEntry = (p: Principal, id: string, on: string | undefined, i
     const e = (await c.query<{ entry_no: string; description: string; reverses_entry_id: string | null }>(
       'SELECT entry_no, description, reverses_entry_id FROM journal_entries WHERE id = $1', [id])).rows[0];
     if (!e) throw notFound('Journal entry');
+    // Entries written by an invoice, bill or payment belong to that document; reversing them here would leave the
+    // subledger saying something the ledger no longer does. The document is voided instead.
+    const owned = await c.query(
+      `SELECT 1 FROM documents WHERE journal_entry_id = $1 OR void_entry_id = $1
+       UNION ALL SELECT 1 FROM payments WHERE journal_entry_id = $1`,
+      [id],
+    );
+    if (owned.rowCount) throw new ApiError(409, 'subledger_entry', 'This entry was posted by an invoice, bill or payment. Void that document instead.');
     if (e.reverses_entry_id) throw new ApiError(409, 'not_reversible', 'A reversing entry cannot itself be reversed.');
     const lines = (await c.query<{ account_id: string; debit: string; credit: string; memo: string | null }>(
       'SELECT account_id, debit::text, credit::text, memo FROM journal_lines WHERE entry_id = $1 ORDER BY line_no', [id])).rows;

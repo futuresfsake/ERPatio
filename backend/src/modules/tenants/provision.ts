@@ -15,6 +15,7 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['1010', 'Cash in Bank', 'asset'],
   ['1100', 'Accounts Receivable', 'asset'],
   ['1200', 'Inventory', 'asset'],
+  ['1300', 'Input VAT', 'asset'],
   ['1500', 'Equipment', 'asset'],
   ['2000', 'Accounts Payable', 'liability'],
   ['2100', 'VAT Payable', 'liability'],
@@ -59,6 +60,20 @@ export async function provisionTenant(
   }
   for (const [code, name, type] of DEFAULT_COA)
     await c.query('INSERT INTO accounts (tenant_id, code, name, type) VALUES ($1, $2, $3, $4)', [tid, code, name, type]);
+  // Control accounts for the subledgers, the document counters, and the standard Philippine VAT codes.
+  await c.query(
+    `UPDATE tenant_settings SET
+       ar_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1100'),
+       ap_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2000') WHERE tenant_id = $1`,
+    [tid],
+  );
+  for (const kind of ['invoice', 'bill']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
+  await c.query(
+    `INSERT INTO tax_codes (tenant_id, code, name, rate, kind, account_id)
+     SELECT $1, v.code, v.name, 12, v.kind, a.id FROM (VALUES ('OUT12', 'Output VAT 12%', 'output', '2100'), ('IN12', 'Input VAT 12%', 'input', '1300')) v(code, name, kind, acct)
+       JOIN accounts a ON a.tenant_id = $1 AND a.code = v.acct`,
+    [tid],
+  );
   return tid;
 }
 

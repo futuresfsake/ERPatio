@@ -21,6 +21,11 @@ export const P = {
   USERS_MANAGE: 'users:manage',
   ROLES_MANAGE: 'roles:manage',
   PLATFORM_MANAGE: 'platform:manage',
+  RECEIVABLES_READ: 'receivables:read',
+  RECEIVABLES_WRITE: 'receivables:write',
+  PAYABLES_READ: 'payables:read',
+  PAYABLES_WRITE: 'payables:write',
+  TAXES_MANAGE: 'taxes:manage',
 } as const;
 export type Permission = (typeof P)[keyof typeof P];
 export const ALL_PERMISSIONS: Permission[] = Object.values(P);
@@ -33,6 +38,7 @@ export const MODULES: Module[] = ['finance', 'supply_chain', 'production', 'hcm'
 export const MODULE_OF: Record<Permission, Module | 'core' | 'platform'> = {
   'accounts:read': 'finance', 'accounts:write': 'finance', 'journal:read': 'finance', 'journal:post': 'finance',
   'journal:reverse': 'finance', 'journal:approve': 'finance', 'reports:read': 'finance', 'periods:manage': 'finance',
+  'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance',
   'audit:read': 'core', 'settings:manage': 'core', 'users:read': 'core', 'users:manage': 'core', 'roles:manage': 'core',
   'privacy:manage': 'core', 'platform:manage': 'platform',
 };
@@ -45,16 +51,19 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'users:read': 'See people and roles', 'users:manage': 'Invite, deactivate and assign roles to people',
   'roles:manage': 'Create and change custom roles', 'privacy:manage': 'Export and erase personal data',
   'platform:manage': 'Operate the platform',
+  'receivables:read': 'See customers, invoices and receipts', 'receivables:write': 'Manage customers, invoices and receipts',
+  'payables:read': 'See suppliers, bills and payments', 'payables:write': 'Manage suppliers, bills and payments',
+  'taxes:manage': 'Set up tax codes',
 };
 
-const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ];
+const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ, P.RECEIVABLES_READ, P.RECEIVABLES_WRITE, P.PAYABLES_READ, P.PAYABLES_WRITE];
 
 export const SYSTEM_ROLES: Record<string, Permission[]> = {
   TenantAdmin: TENANT_PERMISSIONS,
   Accountant: accountant,
-  Viewer: [P.ACCOUNTS_READ, P.JOURNAL_READ, P.REPORTS_READ],
+  Viewer: [P.ACCOUNTS_READ, P.JOURNAL_READ, P.REPORTS_READ, P.RECEIVABLES_READ, P.PAYABLES_READ],
   // Customer persona: the finance manager approves entries, closes periods and sets the approval policy.
-  FinanceManager: [...accountant, P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.SETTINGS_MANAGE, P.AUDIT_READ],
+  FinanceManager: [...accountant, P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.SETTINGS_MANAGE, P.AUDIT_READ, P.TAXES_MANAGE],
 };
 /** Public demo role: posts and reads like an Accountant plus the audit log; no administration. */
 export const DEMO_ROLE: [string, Permission[]] = ['DemoUser', [...accountant, P.AUDIT_READ]];

@@ -21,6 +21,9 @@ import { Login } from './pages/Login';
 import { NewEntry } from './pages/NewEntry';
 import { Overview } from './pages/Overview';
 import { TrialBalancePage } from './pages/TrialBalance';
+import { AgingPage, VatPage } from './pages/AgingVat';
+import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
+import { Parties } from './pages/Parties';
 
 function Frame() {
   const { user, signOut, can, support, endSupport } = useAuth();
@@ -55,10 +58,19 @@ function Frame() {
               {link('/accounts', 'Chart of accounts')}
               {link('/journal', 'Journal')}
               {link('/periods', 'Fiscal periods')}
+              {can('receivables:read') && <div className="label">Receivables</div>}
+              {can('receivables:read') && link('/customers', 'Customers')}
+              {can('receivables:read') && link('/invoices', 'Invoices')}
+              {can('receivables:read') && link('/reports/aging/receivables', 'Receivables aging')}
+              {can('payables:read') && <div className="label">Payables</div>}
+              {can('payables:read') && link('/suppliers', 'Suppliers')}
+              {can('payables:read') && link('/bills', 'Bills')}
+              {can('payables:read') && link('/reports/aging/payables', 'Payables aging')}
               <div className="label">Reports</div>
               {link('/trial-balance', 'Trial balance')}
               {link('/reports/income-statement', 'Income statement')}
               {link('/reports/balance-sheet', 'Balance sheet')}
+              {can('reports:read') && link('/reports/vat', 'Tax report')}
               {(can('audit:read') || can('settings:manage') || people) && <div className="label">Workspace</div>}
               {people && link('/people', 'People')}
               {people && link('/roles', 'Roles')}
@@ -138,6 +150,18 @@ export function App() {
         <Route path="periods" element={<FiscalPeriods />} />
         <Route path="reports/income-statement" element={<IncomeStatementPage />} />
         <Route path="reports/balance-sheet" element={<BalanceSheetPage />} />
+        {(['ar', 'ap'] as const).flatMap((s) => {
+          const n = s === 'ar' ? { parties: 'customers', docs: 'invoices', aging: 'receivables' } : { parties: 'suppliers', docs: 'bills', aging: 'payables' };
+          return [
+            <Route key={`${s}p`} path={n.parties} element={<Parties side={s} />} />,
+            <Route key={`${s}l`} path={n.docs} element={<DocumentList side={s} />} />,
+            <Route key={`${s}n`} path={`${n.docs}/new`} element={<DocumentEditor side={s} />} />,
+            <Route key={`${s}e`} path={`${n.docs}/:id/edit`} element={<DocumentEditor side={s} />} />,
+            <Route key={`${s}d`} path={`${n.docs}/:id`} element={<DocumentDetail side={s} />} />,
+            <Route key={`${s}a`} path={`reports/aging/${n.aging}`} element={<AgingPage side={s} />} />,
+          ];
+        })}
+        <Route path="reports/vat" element={<VatPage />} />
         <Route path="settings" element={<Settings />} />
         <Route path="trial-balance" element={<TrialBalancePage />} />
         <Route path="audit" element={<Audit />} />

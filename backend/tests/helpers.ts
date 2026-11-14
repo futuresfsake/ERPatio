@@ -11,7 +11,7 @@ export const owner = new pg.Pool({ connectionString: TEST_DB, max: 3 });
 
 export async function resetData(): Promise<void> {
   await flushSecurityEvents(); // a late audit write must not race the TRUNCATE
-  await owner.query('TRUNCATE tenants, tenant_counters, tenant_settings, tenant_modules, tenant_keys, email_tokens, consents, fiscal_periods, journal_drafts, journal_draft_lines, audit_log, refresh_tokens, user_roles, role_permissions, roles, users, accounts, journal_entries, journal_lines CASCADE');
+  await owner.query('TRUNCATE tenants, payment_allocations, payments, document_lines, documents, parties, tax_codes, doc_counters, tenant_counters, tenant_settings, tenant_modules, tenant_keys, email_tokens, consents, fiscal_periods, journal_drafts, journal_draft_lines, audit_log, refresh_tokens, user_roles, role_permissions, roles, users, accounts, journal_entries, journal_lines CASCADE');
 }
 
 export async function shutdown(): Promise<void> {
