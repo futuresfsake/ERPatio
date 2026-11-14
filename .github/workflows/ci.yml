@@ -78,9 +78,8 @@ jobs:
         with: { node-version: 22 }
       - name: Throwaway secrets for this run only
         run: |
-          echo "JWT_SECRET=$(head -c48 /dev/urandom | base64 | tr -d '
-')" >> "$GITHUB_ENV"
-          echo "MASTER_KEY=$(head -c32 /dev/urandom | base64)" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$(head -c48 /dev/urandom | base64 -w0)" >> "$GITHUB_ENV"
+          echo "MASTER_KEY=$(head -c32 /dev/urandom | base64 -w0)" >> "$GITHUB_ENV"
       - run: npm ci && npm run build
         working-directory: frontend
       - run: npm ci && npm run build && npm run migrate && npx tsx scripts/seed-demo.ts --reset
