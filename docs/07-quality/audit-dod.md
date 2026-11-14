@@ -167,6 +167,17 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-124 | Default-deny routes | PASS | now 60+ routes; public allow-list asserted exactly |
 | US-125 | Sub-processor register | PARTIAL | regions "planned" until the projects exist |
 
+### EPIC-08 Dashboards and data (M6a, no migration)
+| ID | Story | Status | Evidence |
+|---|---|---|---|
+| US-090 | Executive dashboard | PASS | cash, receivables and payables with overdue, month and year profit, six-month trend, stock value; figures checked against the ledger (`bi-data.test.ts`) |
+| US-091 | Inventory dashboard | PASS | stock value (reconciles to the ledger), reorder count, open orders, fast and non-moving items |
+| US-092 | Profitability | PASS | by customer (invoices less credit notes) and by item (sales delivered against stock cost) |
+| US-093 | Dashboard caching | PASS | keyed by tenant and by the ledger's journal sequence, so a posting shows on the next request; short time limit for the rest; tenants never share an entry |
+| US-094 | Responsive layout | PARTIAL | dashboards use fluid grids and an SVG chart with a table fallback; not checked on a phone |
+| US-095 | CSV import | PASS | customers, suppliers, items, accounts; preview writes nothing; one bad row writes nothing; duplicates skipped or refused; 5,000-row cap; 3,000 rows imported in one go; TIN encrypted |
+| US-096 | Full workspace export | PASS | JSON of 39 tables, no secrets or encrypted fields, tenant only, audited, one every five minutes, import and export permissions separate |
+
 ### EPIC-07 People and payroll (M5, migration 012)
 | ID | Story | Status | Evidence |
 |---|---|---|---|
@@ -379,6 +390,10 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-54 | Not built: 13th-month pay, leave credits and balances, holiday and night-differential premiums, loans with schedules, year-end tax annualisation, payslip printing, bank file export, BIR and SSS reports | High | Each is needed before real use; plan as the next HR slice |
 | F-55 | Payroll amounts are classified sensitive and protected by RLS and permissions, but stored in clear (needed for totals); only the pay rate and identifiers are encrypted | Low | Accepted; revisit with column-level encryption if a customer requires it |
 | F-56 | Contributions for semi-monthly runs are the monthly amount on a projected basis divided by two, an approximation | Medium | Replace with month-to-date accumulation |
+| F-57 | The dashboard cache is per process; several instances would each keep a copy (entries are short-lived and versioned by the ledger, so they cannot go stale after a posting, but non-ledger figures can lag by the time limit) | Low | Move to a shared cache if the service is scaled out |
+| F-58 | Import covers four entities; there is no import of opening balances, open invoices or bills, stock quantities or employees | Medium | Add opening-balance and open-item imports before migrating a real customer |
+| F-59 | The export is one JSON file built table by table with a cursor; very large workspaces would be slow, and there is no per-table CSV | Low | Add per-table CSV and background export if sizes grow |
+| F-60 | Profitability by item uses the order date for sales and the movement date for cost within the same range, so a delivery in a later month than its order can skew a month | Low | Move to delivery-date based sales |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

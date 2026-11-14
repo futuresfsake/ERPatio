@@ -24,6 +24,8 @@ import { TrialBalancePage } from './pages/TrialBalance';
 import { AgingPage, VatPage } from './pages/AgingVat';
 import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
 import { Parties } from './pages/Parties';
+import { Dashboards, ProfitabilityPage } from './pages/Dashboards';
+import { DataPage } from './pages/DataPage';
 import { AttendancePage, EmployeesPage, PayrollPage, PayrollRunPage, RulesPage } from './pages/Hr';
 import { BomPage, WipPage, WorkOrderDetail, WorkOrderList } from './pages/Production';
 import { BankPage } from './pages/Bank';
@@ -60,6 +62,7 @@ function Frame() {
             <>
               <div className="label">Finance</div>
               {link('/', 'Overview', true)}
+              {can('dashboard:read') && link('/dashboards', 'Dashboards')}
               {link('/accounts', 'Chart of accounts')}
               {link('/journal', 'Journal')}
               {link('/periods', 'Fiscal periods')}
@@ -92,10 +95,12 @@ function Frame() {
               {link('/reports/income-statement', 'Income statement')}
               {link('/reports/balance-sheet', 'Balance sheet')}
               {can('reports:read') && link('/reports/vat', 'Tax report')}
+              {can('dashboard:read') && link('/reports/profitability', 'Profitability')}
               {(can('audit:read') || can('settings:manage') || people) && <div className="label">Workspace</div>}
               {people && link('/people', 'People')}
               {people && link('/roles', 'Roles')}
               {can('audit:read') && link('/audit', 'Audit log')}
+              {(can('data:import') || can('data:export')) && link('/data', 'Import and export')}
               {can('settings:manage') && link('/settings', 'Settings')}
             </>
           )}
@@ -168,6 +173,9 @@ export function App() {
         <Route path="reports/income-statement" element={<IncomeStatementPage />} />
         <Route path="reports/balance-sheet" element={<BalanceSheetPage />} />
         <Route path="bank" element={<BankPage />} />
+        <Route path="dashboards" element={<Dashboards />} />
+        <Route path="reports/profitability" element={<ProfitabilityPage />} />
+        <Route path="data" element={<DataPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="payroll" element={<PayrollPage />} />
