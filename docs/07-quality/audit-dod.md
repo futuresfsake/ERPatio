@@ -177,6 +177,10 @@ Run against the built app on a local database, over HTTP (this is not Neon):
 | US-064 | Moving-average costing | PASS | the last unit out takes the remaining value, so no residue; awkward thirds still reconcile |
 | US-065 | Stock adjustments with reason | PASS | both directions post to Inventory Adjustments |
 | US-066 | Inventory equals the ledger (gate: variance 0) | PASS | valuation report compares stock value with the inventory account for any date and flags a manual entry; a stock entry cannot be reversed by hand |
+| US-068 | Three-way match: bill from receipt | PASS | draft bill for received-and-unbilled goods on the goods-received account; billing counted at posting, so two drafts cannot bill the same goods; void releases; a price difference stays visible on 2050 (`stock-gaps.test.ts`) |
+| US-069 | Invoice from delivery | PASS | draft invoice for delivered-and-uninvoiced goods; once only; void releases |
+| US-070a | Returns to supplier and from customer | PASS | only unbilled or uninvoiced goods (the rest by credit or debit note); returns at order price or at the delivery's cost; order reopens; stock still equals ledger |
+| US-070b | Reorder levels and report | PASS | flag on items, report shows on hand, on order, committed |
 | US-067 | Module subscription gate | PASS | a workspace without `supply_chain` gets 403 `module_disabled` |
 
 ### EPIC-03 General ledger (built ahead of M2)
@@ -326,9 +330,9 @@ Many are deliberate attack simulations; they are catalogued, with their gaps, in
 | F-24 | The public demo cannot show approval, closing, administration or 2FA (by design); tests only | Low | Optional guided tour |
 | F-25 | ~~No year-end closing~~ **Resolved**. Still missing: comparatives, PDF export, multi-currency, credit notes, bank reconciliation | Medium | Rest of M2 |
 | F-35 | Invoices, bills and receipts are posted directly; they bypass the optional journal approval (approver is not the author) | Medium | Add approval to documents if a customer requires it |
-| F-42 | One location per workspace: no warehouses, bins, lots, serials or unit-of-measure conversion | Medium | Add locations next in M3 |
-| F-43 | A purchase receipt credits Goods Received Not Invoiced; posting the supplier bill does not clear it automatically (the bill line must use account 2050) | Medium | Three-way match: bill from receipt |
-| F-44 | A delivery does not create the customer invoice; there are no purchase or sales returns, landed cost or reorder points | Medium | Invoice from order, returns, reorder levels |
+| F-42 | One location per workspace: no warehouses, bins, lots, serials or unit-of-measure conversion. **Decision:** accepted for the pilot; build when a pilot customer has more than one stock room | Medium | Revisit after M7 pilot feedback |
+| F-43 | ~~Bill does not clear goods received~~ **Resolved** (bill from receipt). A price difference is left on 2050 as a visible variance; there is no automatic price-variance posting | Low | Add a purchase price variance account if a customer needs it |
+| F-44 | ~~No invoice from delivery, returns or reorder points~~ **Resolved**. Landed cost (freight, duty added to item cost) is still missing | Low | Add with locations |
 | F-45 | Orders carry no tax, currency or discount; the invoice or bill carries them | Low | Revisit with three-way match |
 | F-46 | The new stock screens were checked by type-check, lint and build only, not in a browser | Low | Same as F-39 |
 | F-36 | ~~A payment cannot be undone~~ **Resolved** (payment void). Credit notes, refunds and unapplied cash are still missing | Medium | Next in M2 |

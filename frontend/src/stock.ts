@@ -7,7 +7,7 @@ export const ORDERS = {
   so: { path: 'sales-orders', Title: 'Sales orders', One: 'Sales order', prefix: 'SO', party: 'customer', Party: 'Customer', parties: 'customers', price: 'Unit price', act: 'deliver', Act: 'Deliver', done: 'Delivered' },
 } as const;
 
-export interface Item { id: string; sku: string; name: string; uom: string; is_active: boolean; qty_on_hand: string; value_on_hand: string; avg_cost: string }
+export interface Item { id: string; sku: string; name: string; uom: string; is_active: boolean; reorder_level: string; below_reorder: boolean; qty_on_hand: string; value_on_hand: string; avg_cost: string }
 export interface OrderRow { id: string; no: string | null; party_id: string; party_code: string; party_name: string; order_date: string; reference: string | null; status: 'draft' | 'open' | 'closed' | 'cancelled'; total: string }
 export interface OrderLine { id: string; line_no: number; item_id: string; sku: string; item_name: string; quantity: string; price: string; done_qty: string; open_qty: string }
 export interface Order extends OrderRow { lines: OrderLine[] }
@@ -29,5 +29,8 @@ export const stock = {
   approve: (k: OrderKind, id: string) => api<Order>(`/${ORDERS[k].path}/${id}/approve`, { method: 'POST' }),
   cancel: (k: OrderKind, id: string) => api<Order>(`/${ORDERS[k].path}/${id}/cancel`, { method: 'POST' }),
   fulfil: (k: OrderKind, id: string, date: string, lines: { line_id: string; quantity: string }[]) => api<{ order: Order }>(`/${ORDERS[k].path}/${id}/${ORDERS[k].act}`, { method: 'POST', json: { date, lines } }),
+  fulfilReturn: (k: OrderKind, id: string, date: string, lines: { line_id: string; quantity: string }[]) => api<{ order: Order }>(`/${ORDERS[k].path}/${id}/return`, { method: 'POST', json: { date, lines } }),
+  makeDocument: (k: OrderKind, id: string) => api<{ id: string }>(`/${ORDERS[k].path}/${id}/${k === 'po' ? 'bill' : 'invoice'}`, { method: 'POST', json: {} }),
+  setReorder: (id: string, level: string) => api<Item>(`/items/${id}`, { method: 'PATCH', json: { reorder_level: level } }),
   valuation: (asOf: string) => api<Valuation>(`/reports/stock-valuation?as_of=${asOf}`),
 };
