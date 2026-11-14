@@ -26,6 +26,7 @@ export const P = {
   PAYABLES_READ: 'payables:read',
   PAYABLES_WRITE: 'payables:write',
   TAXES_MANAGE: 'taxes:manage',
+  BANK_MANAGE: 'bank:manage',
   INVENTORY_READ: 'inventory:read',
   INVENTORY_WRITE: 'inventory:write',
   ORDERS_READ: 'orders:read',
@@ -42,7 +43,7 @@ export const MODULES: Module[] = ['finance', 'supply_chain', 'production', 'hcm'
 export const MODULE_OF: Record<Permission, Module | 'core' | 'platform'> = {
   'accounts:read': 'finance', 'accounts:write': 'finance', 'journal:read': 'finance', 'journal:post': 'finance',
   'journal:reverse': 'finance', 'journal:approve': 'finance', 'reports:read': 'finance', 'periods:manage': 'finance',
-  'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance',
+  'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance', 'bank:manage': 'finance',
   'inventory:read': 'supply_chain', 'inventory:write': 'supply_chain', 'orders:read': 'supply_chain', 'orders:write': 'supply_chain',
   'audit:read': 'core', 'settings:manage': 'core', 'users:read': 'core', 'users:manage': 'core', 'roles:manage': 'core',
   'privacy:manage': 'core', 'platform:manage': 'platform',
@@ -59,11 +60,12 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'receivables:read': 'See customers, invoices and receipts', 'receivables:write': 'Manage customers, invoices and receipts',
   'payables:read': 'See suppliers, bills and payments', 'payables:write': 'Manage suppliers, bills and payments',
   'taxes:manage': 'Set up tax codes',
+  'bank:manage': 'Import bank statements and reconcile the bank',
   'inventory:read': 'See items, stock and valuation', 'inventory:write': 'Manage items, receive and deliver stock, adjust stock',
   'orders:read': 'See purchase and sales orders', 'orders:write': 'Create, approve and cancel purchase and sales orders',
 };
 
-const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ, P.RECEIVABLES_READ, P.RECEIVABLES_WRITE, P.PAYABLES_READ, P.PAYABLES_WRITE, P.INVENTORY_READ, P.ORDERS_READ];
+const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ, P.RECEIVABLES_READ, P.RECEIVABLES_WRITE, P.PAYABLES_READ, P.PAYABLES_WRITE, P.INVENTORY_READ, P.ORDERS_READ, P.BANK_MANAGE];
 
 export const SYSTEM_ROLES: Record<string, Permission[]> = {
   TenantAdmin: TENANT_PERMISSIONS,

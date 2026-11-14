@@ -321,3 +321,13 @@ dialog .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1
 @media (prefers-reduced-motion: reduce) {
   .rail, .rail a, .btn, input, select, a, .linkbtn { transition: none; }
 }
+
+/* Printing a document (Save as PDF in the print dialog): content only, no chrome. */
+@media print {
+  .rail, .topbar-sm, .banner-support, .page-head .actions, .toolbar, .no-print, .toast, .linkbtn { display: none !important; }
+  .app { display: block !important; }
+  .main, .page { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .tbl-wrap { border: 1px solid #999 !important; overflow: visible !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+}

@@ -17,6 +17,7 @@ import { draftsRouter } from './modules/drafts/routes.js';
 import { ledgerRouter } from './modules/ledger/routes.js';
 import { subledgerRouter } from './modules/subledger/routes.js';
 import { stockRouter } from './modules/stock/routes.js';
+import { bankRouter } from './modules/bank/routes.js';
 import { periodsRouter } from './modules/periods/routes.js';
 import { platformRouter } from './modules/platform/routes.js';
 import { privacyRouter } from './modules/privacy/routes.js';
@@ -97,6 +98,7 @@ export function createApp(): Express {
   app.use(API, ledgerRouter(API));
   app.use(API, subledgerRouter(API));
   app.use(API, stockRouter(API));
+  app.use(API, bankRouter(API));
   app.use(API, draftsRouter(API));
   app.use(API, periodsRouter(API));
   app.use(API, reportsRouter(API));

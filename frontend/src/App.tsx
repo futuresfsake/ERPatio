@@ -24,6 +24,7 @@ import { TrialBalancePage } from './pages/TrialBalance';
 import { AgingPage, VatPage } from './pages/AgingVat';
 import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
 import { Parties } from './pages/Parties';
+import { BankPage } from './pages/Bank';
 import { Items, StockCard, ValuationPage } from './pages/Items';
 import { OrderDetail, OrderEditor, OrderList } from './pages/Orders';
 
@@ -60,13 +61,16 @@ function Frame() {
               {link('/accounts', 'Chart of accounts')}
               {link('/journal', 'Journal')}
               {link('/periods', 'Fiscal periods')}
+              {can('bank:manage') && link('/bank', 'Bank reconciliation')}
               {can('receivables:read') && <div className="label">Receivables</div>}
               {can('receivables:read') && link('/customers', 'Customers')}
               {can('receivables:read') && link('/invoices', 'Invoices')}
+              {can('receivables:read') && link('/credit-notes', 'Credit notes')}
               {can('receivables:read') && link('/reports/aging/receivables', 'Receivables aging')}
               {can('payables:read') && <div className="label">Payables</div>}
               {can('payables:read') && link('/suppliers', 'Suppliers')}
               {can('payables:read') && link('/bills', 'Bills')}
+              {can('payables:read') && link('/debit-notes', 'Debit notes')}
               {can('payables:read') && link('/reports/aging/payables', 'Payables aging')}
               {can('inventory:read') && <div className="label">Supply chain</div>}
               {can('inventory:read') && link('/items', 'Items')}
@@ -156,6 +160,16 @@ export function App() {
         <Route path="periods" element={<FiscalPeriods />} />
         <Route path="reports/income-statement" element={<IncomeStatementPage />} />
         <Route path="reports/balance-sheet" element={<BalanceSheetPage />} />
+        <Route path="bank" element={<BankPage />} />
+        {(['arc', 'apc'] as const).flatMap((s) => {
+          const docs = s === 'arc' ? 'credit-notes' : 'debit-notes';
+          return [
+            <Route key={`${s}l`} path={docs} element={<DocumentList side={s} />} />,
+            <Route key={`${s}n`} path={`${docs}/new`} element={<DocumentEditor side={s} />} />,
+            <Route key={`${s}e`} path={`${docs}/:id/edit`} element={<DocumentEditor side={s} />} />,
+            <Route key={`${s}d`} path={`${docs}/:id`} element={<DocumentDetail side={s} />} />,
+          ];
+        })}
         {(['ar', 'ap'] as const).flatMap((s) => {
           const n = s === 'ar' ? { parties: 'customers', docs: 'invoices', aging: 'receivables' } : { parties: 'suppliers', docs: 'bills', aging: 'payables' };
           return [

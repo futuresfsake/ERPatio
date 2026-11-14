@@ -2,12 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { downloadCsv } from '../lib/csv';
 import { formatApiNum } from '../lib/money';
-import { SIDES, sub, type Side } from '../subledger';
+import { SIDES, sub } from '../subledger';
 import { Loading, Problem, todayIso } from '../ui';
 
 const COLS = [['current', 'Not yet due'], ['d1_30', '1–30'], ['d31_60', '31–60'], ['d61_90', '61–90'], ['d90_plus', 'Over 90'], ['total', 'Total']] as const;
 
-export function AgingPage({ side }: { side: Side }) {
+export function AgingPage({ side }: { side: 'ar' | 'ap' }) {
   const S = SIDES[side];
   const [asOf, setAsOf] = useState(todayIso());
   const ok = /^\d{4}-\d{2}-\d{2}$/.test(asOf);
