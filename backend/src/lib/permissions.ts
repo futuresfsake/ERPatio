@@ -27,6 +27,8 @@ export const P = {
   PAYABLES_WRITE: 'payables:write',
   TAXES_MANAGE: 'taxes:manage',
   BANK_MANAGE: 'bank:manage',
+  PRODUCTION_READ: 'production:read',
+  PRODUCTION_WRITE: 'production:write',
   INVENTORY_READ: 'inventory:read',
   INVENTORY_WRITE: 'inventory:write',
   ORDERS_READ: 'orders:read',
@@ -43,7 +45,7 @@ export const MODULES: Module[] = ['finance', 'supply_chain', 'production', 'hcm'
 export const MODULE_OF: Record<Permission, Module | 'core' | 'platform'> = {
   'accounts:read': 'finance', 'accounts:write': 'finance', 'journal:read': 'finance', 'journal:post': 'finance',
   'journal:reverse': 'finance', 'journal:approve': 'finance', 'reports:read': 'finance', 'periods:manage': 'finance',
-  'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance', 'bank:manage': 'finance',
+  'receivables:read': 'finance', 'receivables:write': 'finance', 'payables:read': 'finance', 'payables:write': 'finance', 'taxes:manage': 'finance', 'bank:manage': 'finance', 'production:read': 'production', 'production:write': 'production',
   'inventory:read': 'supply_chain', 'inventory:write': 'supply_chain', 'orders:read': 'supply_chain', 'orders:write': 'supply_chain',
   'audit:read': 'core', 'settings:manage': 'core', 'users:read': 'core', 'users:manage': 'core', 'roles:manage': 'core',
   'privacy:manage': 'core', 'platform:manage': 'platform',
@@ -61,23 +63,25 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'payables:read': 'See suppliers, bills and payments', 'payables:write': 'Manage suppliers, bills and payments',
   'taxes:manage': 'Set up tax codes',
   'bank:manage': 'Import bank statements and reconcile the bank',
+  'production:read': 'See bills of materials, work orders and work in progress', 'production:write': 'Manage bills of materials and work orders, issue materials, report output',
   'inventory:read': 'See items, stock and valuation', 'inventory:write': 'Manage items, receive and deliver stock, adjust stock',
   'orders:read': 'See purchase and sales orders', 'orders:write': 'Create, approve and cancel purchase and sales orders',
 };
 
-const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ, P.RECEIVABLES_READ, P.RECEIVABLES_WRITE, P.PAYABLES_READ, P.PAYABLES_WRITE, P.INVENTORY_READ, P.ORDERS_READ, P.BANK_MANAGE];
+const accountant: Permission[] = [P.ACCOUNTS_READ, P.ACCOUNTS_WRITE, P.JOURNAL_READ, P.JOURNAL_POST, P.JOURNAL_REVERSE, P.REPORTS_READ, P.RECEIVABLES_READ, P.RECEIVABLES_WRITE, P.PAYABLES_READ, P.PAYABLES_WRITE, P.INVENTORY_READ, P.ORDERS_READ, P.BANK_MANAGE, P.PRODUCTION_READ];
 
 export const SYSTEM_ROLES: Record<string, Permission[]> = {
   TenantAdmin: TENANT_PERMISSIONS,
   Accountant: accountant,
-  Viewer: [P.ACCOUNTS_READ, P.JOURNAL_READ, P.REPORTS_READ, P.RECEIVABLES_READ, P.PAYABLES_READ, P.INVENTORY_READ, P.ORDERS_READ],
+  Viewer: [P.ACCOUNTS_READ, P.JOURNAL_READ, P.REPORTS_READ, P.RECEIVABLES_READ, P.PAYABLES_READ, P.INVENTORY_READ, P.ORDERS_READ, P.PRODUCTION_READ],
   // Stock room: items, orders, receiving and delivery; sees parties and accounts but cannot post to the ledger by hand.
+  ProductionManager: [P.PRODUCTION_READ, P.PRODUCTION_WRITE, P.INVENTORY_READ, P.ORDERS_READ, P.ACCOUNTS_READ],
   WarehouseClerk: [P.INVENTORY_READ, P.INVENTORY_WRITE, P.ORDERS_READ, P.ORDERS_WRITE, P.ACCOUNTS_READ, P.RECEIVABLES_READ, P.PAYABLES_READ],
   // Customer persona: the finance manager approves entries, closes periods and sets the approval policy.
   FinanceManager: [...accountant, P.JOURNAL_APPROVE, P.PERIODS_MANAGE, P.SETTINGS_MANAGE, P.AUDIT_READ, P.TAXES_MANAGE],
 };
 /** Public demo role: posts and reads like an Accountant plus the audit log; no administration. */
-export const DEMO_ROLE: [string, Permission[]] = ['DemoUser', [...accountant, P.AUDIT_READ, P.INVENTORY_WRITE, P.ORDERS_WRITE]];
+export const DEMO_ROLE: [string, Permission[]] = ['DemoUser', [...new Set([...accountant, P.AUDIT_READ, P.INVENTORY_WRITE, P.ORDERS_WRITE, P.PRODUCTION_READ, P.PRODUCTION_WRITE])]];
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

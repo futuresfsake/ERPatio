@@ -58,9 +58,9 @@ export const stockCard = (p: Principal, id: string) =>
   });
 
 // ------------------------------------------------------------------ posting stock
-interface Accounts { inventory: string; cogs: string; grni: string; adjustment: string }
+export interface Accounts { inventory: string; cogs: string; grni: string; adjustment: string }
 
-async function accountsFor(c: PoolClient, tenantId: string): Promise<Accounts> {
+export async function accountsFor(c: PoolClient, tenantId: string): Promise<Accounts> {
   const r = (await c.query<Record<string, string | null>>(
     'SELECT inventory_account_id, cogs_account_id, grni_account_id, adjustment_account_id FROM tenant_settings WHERE tenant_id = $1', [tenantId])).rows[0];
   if (!r?.inventory_account_id || !r.cogs_account_id || !r.grni_account_id || !r.adjustment_account_id)
@@ -68,16 +68,23 @@ async function accountsFor(c: PoolClient, tenantId: string): Promise<Accounts> {
   return { inventory: r.inventory_account_id, cogs: r.cogs_account_id, grni: r.grni_account_id, adjustment: r.adjustment_account_id };
 }
 
-interface Move { itemId: string; kind: 'receipt' | 'issue' | 'adjust_in' | 'adjust_out' | 'return_in' | 'return_out'; qty: bigint; unitCost?: bigint; note?: string }
+export interface MoveOpts {
+  /** Issues debit this account (work in progress) instead of cost of goods sold. */
+  issueDebit?: string;
+  /** Receipts credit these accounts instead of goods received not invoiced. Must add up to the receipt value. */
+  receiptCredits?: { account_id: string; amount: bigint; memo: string }[];
+}
+
+export interface Move { itemId: string; kind: 'receipt' | 'issue' | 'adjust_in' | 'adjust_out' | 'return_in' | 'return_out'; qty: bigint; unitCost?: bigint; /** exact total value of a receipt, overriding qty times unit cost */ totalValue?: bigint; note?: string }
 
 /**
  * Applies a batch of movements and writes one journal entry for the lot. Items are locked in id order so two
  * postings over the same items cannot deadlock. Issues are costed at the moving average; the last unit out takes
  * whatever value remains, so no rounding residue is ever stranded in the stock.
  */
-async function applyMovements(
-  c: PoolClient, p: Principal, moves: Move[], date: string, source: { type: 'purchase_order' | 'sales_order' | 'adjustment'; id?: string },
-  desc: string, ip: string | undefined,
+export async function applyMovements(
+  c: PoolClient, p: Principal, moves: Move[], date: string, source: { type: 'purchase_order' | 'sales_order' | 'adjustment' | 'work_order'; id?: string },
+  desc: string, ip: string | undefined, opts: MoveOpts = {},
 ) {
   const a = await accountsFor(c, p.tenantId);
   const ids = [...new Set(moves.map((m) => m.itemId))].sort();
@@ -95,10 +102,10 @@ async function applyMovements(
     const s = stock.get(m.itemId)!;
     if (m.kind === 'receipt' || m.kind === 'adjust_in' || m.kind === 'return_in') {
       const unitCost = m.unitCost ?? 0n;
-      const value = extend(m.qty, unitCost);
+      const value = m.totalValue ?? extend(m.qty, unitCost);
       s.qty += m.qty; s.value += value;
-      planned.push({ m, qty: m.qty, unitCost, value });
-      if (m.kind === 'receipt') grni += value;
+      planned.push({ m, qty: m.qty, unitCost: m.totalValue !== undefined && m.qty > 0n ? (m.totalValue * U) / m.qty : unitCost, value });
+      if (m.kind === 'receipt' && !opts.receiptCredits) grni += value;
       if (m.kind === 'return_in') cogsBack += value;
     } else {
       if (m.qty > s.qty) throw new ApiError(409, 'insufficient_stock', 'There is not enough stock on hand for that quantity.');
@@ -121,7 +128,13 @@ async function applyMovements(
   if (inIn > 0n) dr(a.inventory, inIn, 'Stock in');
   if (inOut > 0n) cr(a.inventory, inOut, 'Stock out');
   if (grni > 0n) cr(a.grni, grni, 'Goods received not invoiced');
-  if (cogs > 0n) dr(a.cogs, cogs, 'Cost of goods sold');
+  if (cogs > 0n) dr(opts.issueDebit ?? a.cogs, cogs, opts.issueDebit ? 'Materials to work in progress' : 'Cost of goods sold');
+  if (opts.receiptCredits) {
+    const credited = opts.receiptCredits.reduce((t, x) => t + x.amount, 0n);
+    const received = planned.filter((x) => x.m.kind === 'receipt').reduce((t, x) => t + x.value, 0n);
+    if (credited !== received) throw new ApiError(500, 'internal', 'Receipt credits do not add up to the receipt value.');
+    for (const x of opts.receiptCredits) if (x.amount > 0n) cr(x.account_id, x.amount, x.memo);
+  }
   if (cogsBack > 0n) cr(a.cogs, cogsBack, 'Cost of goods returned');
   if (grniBack > 0n) dr(a.grni, grniBack, 'Goods returned to supplier');
   const adjIn = planned.filter((x) => x.m.kind === 'adjust_in').reduce((t, x) => t + x.value, 0n);
@@ -139,7 +152,7 @@ async function applyMovements(
       [p.tenantId, x.m.itemId, date, x.m.kind, fromUnits(x.qty), fromUnits(x.unitCost), fromUnits(x.value), source.type, source.id ?? null, x.m.note ?? null, x.value === 0n ? null : entryId, p.userId]);
   }
   for (const [id, s] of stock) await c.query('UPDATE item_stock SET qty = $3, value = $4 WHERE tenant_id = $1 AND item_id = $2', [p.tenantId, id, fromUnits(s.qty), fromUnits(s.value)]);
-  return { entryId, moves: planned.length };
+  return { entryId, moves: planned.length, values: planned.map((x) => ({ itemId: x.m.itemId, qty: x.qty, value: x.value })) };
 }
 
 export const adjustStock = (p: Principal, a: AdjustIn, ip?: string) =>

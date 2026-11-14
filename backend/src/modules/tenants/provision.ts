@@ -15,6 +15,7 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['1010', 'Cash in Bank', 'asset'],
   ['1100', 'Accounts Receivable', 'asset'],
   ['1200', 'Inventory', 'asset'],
+  ['1210', 'Work in Progress', 'asset'],
   ['1300', 'Input VAT', 'asset'],
   ['1500', 'Equipment', 'asset'],
   ['2000', 'Accounts Payable', 'liability'],
@@ -26,6 +27,8 @@ export const DEFAULT_COA: [code: string, name: string, type: string][] = [
   ['4100', 'Other Income', 'revenue'],
   ['5000', 'Cost of Goods Sold', 'expense'],
   ['5100', 'Inventory Adjustments', 'expense'],
+  ['5200', 'Conversion Cost Applied', 'expense'],
+  ['5300', 'Production Variance', 'expense'],
   ['6000', 'Rent Expense', 'expense'],
   ['6100', 'Salaries Expense', 'expense'],
   ['6200', 'Utilities Expense', 'expense'],
@@ -72,10 +75,13 @@ export async function provisionTenant(
        cogs_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5000'),
        grni_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '2050'),
        adjustment_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5100'),
-       sales_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '4000') WHERE tenant_id = $1`,
+       sales_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '4000'),
+       wip_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '1210'),
+       conversion_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5200'),
+       variance_account_id = (SELECT id FROM accounts WHERE tenant_id = $1 AND code = '5300') WHERE tenant_id = $1`,
     [tid],
   );
-  for (const kind of ['invoice', 'bill', 'po', 'so', 'credit_note', 'debit_note']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
+  for (const kind of ['invoice', 'bill', 'po', 'so', 'credit_note', 'debit_note', 'wo']) await c.query('INSERT INTO doc_counters (tenant_id, kind) VALUES ($1, $2)', [tid, kind]);
   await c.query(
     `INSERT INTO tax_codes (tenant_id, code, name, rate, kind, account_id)
      SELECT $1, v.code, v.name, 12, v.kind, a.id FROM (VALUES ('OUT12', 'Output VAT 12%', 'output', '2100'), ('IN12', 'Input VAT 12%', 'input', '1300')) v(code, name, kind, acct)

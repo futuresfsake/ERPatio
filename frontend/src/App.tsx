@@ -24,6 +24,7 @@ import { TrialBalancePage } from './pages/TrialBalance';
 import { AgingPage, VatPage } from './pages/AgingVat';
 import { DocumentDetail, DocumentEditor, DocumentList } from './pages/Documents';
 import { Parties } from './pages/Parties';
+import { BomPage, WipPage, WorkOrderDetail, WorkOrderList } from './pages/Production';
 import { BankPage } from './pages/Bank';
 import { Items, StockCard, ValuationPage } from './pages/Items';
 import { OrderDetail, OrderEditor, OrderList } from './pages/Orders';
@@ -77,6 +78,10 @@ function Frame() {
               {can('orders:read') && link('/purchase-orders', 'Purchase orders')}
               {can('orders:read') && link('/sales-orders', 'Sales orders')}
               {can('inventory:read') && link('/reports/stock-valuation', 'Stock valuation')}
+              {can('production:read') && <div className="label">Production</div>}
+              {can('production:read') && link('/boms', 'Bills of materials')}
+              {can('production:read') && link('/work-orders', 'Work orders')}
+              {can('production:read') && link('/reports/wip', 'Work in progress')}
               <div className="label">Reports</div>
               {link('/trial-balance', 'Trial balance')}
               {link('/reports/income-statement', 'Income statement')}
@@ -88,7 +93,6 @@ function Frame() {
               {can('audit:read') && link('/audit', 'Audit log')}
               {can('settings:manage') && link('/settings', 'Settings')}
               <div className="label">Later</div>
-              <a className="later" aria-disabled="true">Production</a>
               <a className="later" aria-disabled="true">Payroll</a>
             </>
           )}
@@ -161,6 +165,10 @@ export function App() {
         <Route path="reports/income-statement" element={<IncomeStatementPage />} />
         <Route path="reports/balance-sheet" element={<BalanceSheetPage />} />
         <Route path="bank" element={<BankPage />} />
+        <Route path="boms" element={<BomPage />} />
+        <Route path="work-orders" element={<WorkOrderList />} />
+        <Route path="work-orders/:id" element={<WorkOrderDetail />} />
+        <Route path="reports/wip" element={<WipPage />} />
         {(['arc', 'apc'] as const).flatMap((s) => {
           const docs = s === 'arc' ? 'credit-notes' : 'debit-notes';
           return [
